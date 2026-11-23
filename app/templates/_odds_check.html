@@ -1,0 +1,33 @@
+{# Shown under a "Make a SportyBet booking code" button once the code is made: the picks' odds when the code was
+   built and just before it was made. #}
+<div class="odds-check">
+{% if not c.code %}
+<p><b class="bad">SportyBet didn't make the code.</b>
+{% if c.problems %}Its answer:</p>
+<ul class="cm-msgs">{% for m in c.problems %}<li class="bad">{{ m }}</li>{% endfor %}</ul>
+<p class="muted">Common reasons: a game has already started or its market is closed, a pick is suspended, or the code
+has more picks than SportyBet allows. Untick the picks it names (or the earliest kick-offs) and try again.</p>
+{% elif c.failed %}The request failed in the browser before SportyBet answered ({{ c.failed }} of {{ c.n_requests }} requests failed).
+Check that you're logged in on SportyBet and try again.</p>
+{% else %}SportyBet answered, but not with a code the app recognises.</p>{% endif %}
+<p>{% elif c.codes|length > 1 %}<p><b>Codes {{ c.codes|join(', ') }}</b>{% if c.codes|length < c.n_make %}
+<span class="bad">(SportyBet made {{ c.codes|length }} of the {{ c.n_make }} codes asked for; its answers are listed below)</span>{% endif %}.
+{% else %}<p><b>Code {{ c.code }}</b>{% if c.n_make > 1 %} <span class="bad">(only 1 of the {{ c.n_make }} codes asked for was made)</span>{% endif %}. {% endif %}
+{% if c.gone %}<span class="bad">{{ c.gone }} pick{{ 's are' if c.gone != 1 else ' is' }} no longer on offer</span>, so SportyBet may
+have left {{ 'them' if c.gone != 1 else 'it' }} out. {% endif %}
+{% if c.moved %}{{ c.moved }} pick{{ 's' if c.moved != 1 }} moved since you built it.{% elif not c.gone and not c.unchecked %}No odds moved since you built it.{% endif %}
+{% if c.unchecked %}{{ c.unchecked }} game{{ 's' if c.unchecked != 1 }} couldn't be fetched again, so {{ 'their' if c.unchecked != 1 else 'its' }} odds weren't checked.{% endif %}
+Check {{ 'each code' if c.codes|length > 1 else 'the code' }} on SportyBet before you decide.</p>
+{% if c.code and c.problems %}<ul class="cm-msgs">{% for m in c.problems %}<li class="bad">{{ m }}</li>{% endfor %}</ul>{% endif %}
+{% if c.odds_then and c.odds_now %}<p class="muted">Total odds {{ '%.2f'|format(c.odds_then) }} → {{ '%.2f'|format(c.odds_now) }};
+chance {{ c.prob_then|pct(1) }} → {{ c.prob_now|pct(1) }} on SportyBet's numbers.</p>{% endif %}
+{% if c.moved or c.gone or c.unchecked %}
+<div class="scroll"><table class="stack"><tr>{% if c.parts %}<th class="num">Code<th>{% else %}<th>{% endif %}Game<th>Pick<th class="num">Odds<th class="num">Chance</tr>
+{% for r in c.rows if r.state != 'same' %}<tr>
+{% if c.parts %}<td data-label="Code" class="num">{{ c.codes[r.part - 1] if r.part and c.codes|length == c.n_make else r.part }}{% endif %}<td>{{ r.match }}<td data-label="Pick">{{ r.label }}
+<td data-label="Odds" class="num">{% if r.state == 'gone' %}<span class="bad">gone</span>{% elif r.state == 'unchecked' %}<span class="muted">not checked</span>{% else %}{{ '%.2f'|format(r.odds_then) if r.odds_then else '?' }} → <b>{{ '%.2f'|format(r.odds_now) }}</b>{% endif %}
+<td data-label="Chance" class="num">{% if r.prob_now is not none and r.prob_then is not none %}{{ r.prob_then|pct(1) }} → {{ r.prob_now|pct(1) }}{% else %}-{% endif %}
+</tr>{% endfor %}</table></div>
+<p class="muted">Higher odds on the same pick mean SportyBet now rates it less likely, not that it's better value.</p>
+{% endif %}
+</div>

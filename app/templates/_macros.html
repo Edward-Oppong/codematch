@@ -1,0 +1,121 @@
+{% macro messages(msgs) %}
+{% for ok, m in msgs %}<div class="msg {{ 'ok' if ok else 'bad' }}" role="status">{{ m }}</div>{% endfor %}
+{% endmacro %}
+
+{# A fetch from sportybet.com. The main way is the CodeMatch bookmark button; pasting code into the console is kept
+   as a fallback. `code` is a Snippet: the console code, carrying its list of requests. #}
+{% macro snippet(code, summary, open=False, note=None) %}
+<details class="snippet"{{ ' open' if open }}>
+<summary>{{ summary }}</summary>
+<div class="fetch">
+  <button type="button" data-cm-job='{{ code.requests|tojson }}' data-label="{{ code.label }}">Fetch with the CodeMatch button</button>
+  <span class="cm-status muted" aria-live="polite">Opens SportyBet in a new tab; then click <b>CodeMatch</b> in your bookmarks bar there.
+  {% if not button_used %}First time? <a href="{{ url_for('imports.index') }}#button">Add the button</a> (one drag).{% endif %}
+  {% if button_outdated %}<b class="warn">Your CodeMatch bookmark is out of date:</b> <a href="{{ url_for('imports.index') }}#button">drag the new one</a> over it.{% endif %}</span>
+</div>
+{% if note %}<p class="muted">{{ note }}</p>{% endif %}
+<details class="console">
+<summary>Or paste code into the console</summary>
+<ol class="steps">
+  <li>Open <a href="https://www.sportybet.com/gh/" target="_blank" rel="noopener">sportybet.com</a> in this browser, press <b>F12</b> and choose <b>Console</b>.</li>
+  <li>Copy the code below, paste it and press <b>Enter</b>. If Chrome asks, type <code>allow pasting</code> first.</li>
+  <li>When it prints <code>saved</code>, upload the downloaded file on <a href="{{ url_for('imports.index') }}">Import</a>.</li>
+</ol>
+<div class="code-wrap"><button type="button" class="copy secondary" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText).then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1600); })">Copy</button><pre>{{ code }}</pre></div>
+</details>
+</details>
+{% endmacro %}
+
+{% macro zone_badge(key, labels) %}<span class="zone z-{{ key }}">{{ labels[key] }}</span>{% endmacro %}
+
+{% macro ret(r) %}{% if r is not none %}<span class="{{ 'warn' if r < 0.9 else '' }}" title="Paid back on average per 1 staked">{{ '%.3f'|format(r) }}</span>{% else %}-{% endif %}{% endmacro %}
+
+{% macro figure(label, value, small=None, cls='') %}<div class="figure"><span>{{ label }}</span><b class="{{ cls }}">{{ value }}{% if small %} <small>{{ small }}</small>{% endif %}</b></div>{% endmacro %}
+
+{# a chance as a field of dots, one filled dot per expected win: out of 100 plays when the chance is 1% or more,
+   otherwise out of 1 / chance plays (up to 1000 dots). #}
+{% macro chance_dots(p) %}
+{% if p is not none and p >= 0.01 %}
+  {% set k = [1, (p * 100)|round|int]|max %}
+  <div class="dots" role="img" aria-label="{{ k }} dots filled out of 100">
+    {% for i in range(100) %}<i{% if i < k %} class="w"{% endif %}></i>{% endfor %}
+  </div>
+  <p class="muted dots-note">Play this code 100 times and, on SportyBet's numbers, it wins about {{ k }} of them.</p>
+{% elif p is not none and p > 0 %}
+  {% set n = (1 / p)|round|int %}
+  {% if n <= 1000 %}
+  <div class="dots{{ ' many' if n > 300 }}" role="img" aria-label="1 dot filled out of {{ n }}">
+    {% for i in range(n) %}<i{% if i == (n // 2) %} class="w"{% endif %}></i>{% endfor %}
+  </div>
+  <p class="muted dots-note">Play this code {{ n }} times and, on SportyBet's numbers, it wins about once.</p>
+  {% else %}
+  <p class="muted">Play this code {{ '{:,}'.format(n) }} times and, on SportyBet's numbers, it wins about once.
+  That's too many dots to draw.</p>
+  {% endif %}
+{% elif p is not none %}
+  <p class="muted">Two of its legs contradict each other, so it can't win.</p>
+{% endif %}
+{% endmacro %}
+
+{# Under a list of picks: a live count of the ticked picks, an optional "picks per code", and the make-code button.
+   More picks than one code takes are made as several codes in the same trip. #}
+{% macro make_bar(text="Make a SportyBet booking code from the ticked picks", split=False,
+                  note="It fetches each game again to check the odds, then makes the code; you check it and decide on SportyBet.") %}
+<p class="picker-sum" aria-live="polite"></p>
+<div class="fetch">
+  {% if split %}<label class="small">Picks per code <input name="per_code" size="3" inputmode="numeric" placeholder="50"
+    title="More ticked picks than this are made as several codes of near-equal size (SportyBet takes 50 at most)"></label>{% endif %}
+  <button type="button" data-cm-queue="{{ url_for('codes.make') }}">{{ text }}</button>
+  <span class="cm-status muted" aria-live="polite">{{ note }}</span>
+</div>
+{% endmacro %}
+
+{# The tick-all box for the header of a pick table. #}
+{% macro tick_all(label="Tick every pick") %}<input type="checkbox" data-tick-all aria-label="{{ label }}" title="{{ label }}">{% endmacro %}
+
+{# The data a ticked pick carries for the live totals. #}
+{% macro pick_data(odds, prob, game) %} data-odds="{{ odds }}"{% if prob is not none %} data-prob="{{ prob }}"{% endif %} data-game="{{ game }}"{% endmacro %}
+
+{% macro flow_tracker(active_step=1) %}
+<nav class="flow-tracker" aria-label="Betting Pipeline">
+  <a href="{{ url_for('leagues.index') }}" class="flow-step{{ ' active' if active_step == 1 else (' done' if active_step > 1 else '') }}" title="Step 1: Pick and import your leagues from SportyBet">
+    <span class="num">{{ '✓' if active_step > 1 else '1' }}</span>
+    <span class="step-label">1. Pick Leagues</span>
+  </a>
+  <span class="flow-arrow">&rarr;</span>
+  <a href="{{ url_for('leagues.singles') }}" class="flow-step{{ ' active' if active_step == 2 else (' done' if active_step > 2 else '') }}" title="Step 2: Hunt value singles or build optimal custom parlays">
+    <span class="num">{{ '✓' if active_step > 2 else '2' }}</span>
+    <span class="step-label">2. Hunt &amp; Build Slips</span>
+  </a>
+  <span class="flow-arrow">&rarr;</span>
+  <a href="{{ url_for('codes.index') }}" class="flow-step{{ ' active' if active_step == 3 else (' done' if active_step > 3 else '') }}" title="Step 3: Audit booking codes, cure toxic legs, and check consensus">
+    <span class="num">{{ '✓' if active_step > 3 else '3' }}</span>
+    <span class="step-label">3. Audit &amp; Code Surgeon</span>
+  </a>
+  <span class="flow-arrow">&rarr;</span>
+  <a href="{{ url_for('results.index') }}" class="flow-step{{ ' active' if active_step == 4 else (' done' if active_step > 4 else '') }}" title="Step 4: Track Kelly stake sizing, CLV, and personal calibration">
+    <span class="num">4</span>
+    <span class="step-label">4. Track Bankroll</span>
+  </a>
+</nav>
+{% endmacro %}
+
+{% macro hunt_tabs(active='singles', start=None, end=None) %}
+{% set qs = {} %}
+{% if start and end %}{% set _ = qs.update({'start': start.isoformat(), 'end': end.isoformat()}) %}{% endif %}
+<nav class="tabs" aria-label="Hunt Views">
+  <a href="{{ url_for('leagues.singles', **qs) }}" class="{{ 'on' if active == 'singles' else '' }}">🎯 Value Singles</a>
+  <a href="{{ url_for('leagues.parlay', **qs) }}" class="{{ 'on' if active == 'parlay' else '' }}">⚡ Custom Parlay Builder</a>
+  <a href="{{ url_for('leagues.index', mode='screen', **qs) }}" class="{{ 'on' if active == 'screen' else '' }}">Choose the bet, find the teams</a>
+  <a href="{{ url_for('leagues.margins', **qs) }}" class="{{ 'on' if active == 'margins' else '' }}">📊 Lowest Margin</a>
+  <a href="{{ url_for('leagues.index', **qs) }}#get-leagues" class="{{ 'on' if active == 'leagues' else '' }}" style="margin-left:auto; font-weight:700;">📋 Get Leagues</a>
+</nav>
+{% endmacro %}
+
+{% macro slip_tabs(active='codes') %}
+<nav class="tabs" aria-label="Slip Lab Navigation">
+  <a href="{{ url_for('codes.index') }}" class="{{ 'on' if active == 'codes' else '' }}">📋 All Codes &amp; Hub</a>
+  <a href="{{ url_for('codes.batch_surgeon') }}" class="{{ 'on' if active == 'surgeon' else '' }}">⚡ Batch Code Surgeon</a>
+  <a href="{{ url_for('codes.fixtures') }}" class="{{ 'on' if active == 'fixtures' else '' }}">🔗 Shared Fixtures</a>
+</nav>
+{% endmacro %}

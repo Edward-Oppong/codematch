@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Custom Parlay Builder · CodeMatch{% endblock %}
+{% block body %}
+{{ m.flow_tracker(2) }}
+
+<h1>Custom Parlay Builder</h1>
+<p class="lede">Algorithmic accumulator engineering: build slips mathematically by target odds, time-staggered hedging, risk-tiered portfolios, or round-robin systems.</p>
+
+{{ m.hunt_tabs('parlay', start, end) }}
+
+{% set zl = {} %}{% for k, label, lo, hi in zones %}{% set _ = zl.update({k: label}) %}{% endfor %}
+
+{% if not imported %}
+<div class="card" style="border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 14px 18px; margin: 18px 0;">
+  <h3 style="margin:0 0 6px">No leagues imported yet</h3>
+  <p style="margin:0 0 10px">To generate custom parlays, first import some leagues from SportyBet.</p>
+  <a href="{{ url_for('leagues.index') }}#get-leagues" style="display:inline-block; background:var(--accent); color:var(--accent-ink); padding:7px 16px; border-radius:var(--r-sm); text-decoration:none; font-weight:600;">Go to Get Leagues &rarr;</a>
+</div>
+{% else %}
+
+{# Strategy Selector Cards #}
+<div class="strategy-bar" role="tablist">
+  <a href="{{ url_for('leagues.parlay', strat='target', start=start.isoformat(), end=end.isoformat()) }}" class="strategy-card {{ 'active' if strat == 'target' else '' }}">
+    <div class="title">🎯 1. Target Odds Optimizer</div>
+    <div class="desc">Finds the mathematically highest-chance combination to hit your exact multiplier.</div>
+  </a>
+  <a href="{{ url_for('leagues.parlay', strat='staggered', start=start.isoformat(), end=end.isoformat()) }}" class="strategy-card {{ 'active' if strat == 'staggered' else '' }}">
+    <div class="title">⏱️ 2. Time-Staggered Hedging</div>
+    <div class="desc">Chains games kicking off one after another for guaranteed cash-out profit checkpoints.</div>
+  </a>
+  <a href="{{ url_for('leagues.parlay', strat='zone', start=start.isoformat(), end=end.isoformat()) }}" class="strategy-card {{ 'active' if strat == 'zone' else '' }}">
+    <div class="title">⚡ 3. Zone Portfolio</div>
+    <div class="desc">Barbell & Anchor-Multiplier structures combining solid bankers with targeted value.</div>
+  </a>
+  <a href="{{ url_for('leagues.parlay', strat='round_robin', start=start.isoformat(), end=end.isoformat()) }}" class="strategy-card {{ 'active' if strat == 'round_robin' else '' }}">
+    <div class="title">🔄 4. Round-Robin &amp; Systems</div>
+    <div class="desc">Permutation covers (Doubles, Trebles) ensuring profit even if 1 or 2 legs fail.</div>
+  </a>
+</div>
+
+{# Filter & Configuration Form #}
+<form method="get" class="card filters" style="margin-bottom: 20px;">
+  <input type="hidden" name="strat" value="{{ strat }}">
+  <div class="row" style="align-items:center; justify-content:space-between;">
+    <span><b>Filter by League:</b> <small class="muted">({{ imported|length }} imported)</small></span>
+    <span class="small" style="display:flex; gap:8px;">
+      {% if not all_chosen %}<a href="{{ show_all_url }}">Show all</a>{% else %}<span class="muted">all shown</span>{% endif %} · 
+      <a href="{{ url_for('leagues.index') }}#get-leagues" style="color:var(--accent); font-weight:600;">+ Get More Leagues</a>
+    </span>
+  </div>
+  <div class="league-filter-box" role="group" aria-label="Leagues">
+    {% for l in imported %}<label class="chip"><input type="checkbox" name="tid" value="{{ l.tournament_id }}"
+      {{ 'checked' if l.tournament_id in chosen and not all_chosen }} onchange="this.form.requestSubmit()">{{ l.tournament }} <small>{{ l.n }}</small></label>{% endfor %}
+  </div>
+  <div class="row">
+    <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+    <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+    <label><input type="checkbox" name="upcoming" value="1" {{ 'checked' if upcoming }}> Only games not yet started</label>
+  </div>
+
+  {# Strategy-Specific Configuration Fields #}
+  {% if strat == 'target' %}
+  <div class="row" style="background:var(--paper); padding:10px 14px; border-radius:var(--r-sm); border:1px solid var(--rule);">
+    <label>Target Odds <input name="target_odds" type="number" step="0.1" min="1.05" max="1000" value="{{ '%.2f'|format(target_odds) }}" style="width:5.5em; font-weight:700;"></label>
+    <label>Min Legs <input name="min_legs" type="number" min="1" max="20" value="{{ min_legs }}" style="width:4em;"></label>
+    <label>Max Legs <input name="max_legs" type="number" min="2" max="30" value="{{ max_legs }}" style="width:4em;"></label>
+    <label>Min Chance per Leg <input name="min_chance" type="number" min="5" max="95" value="{{ '%.0f'|format(min_chance) }}" style="width:4em;">%</label>
+    <button style="margin-left:auto;">Generate Optimal Slip</button>
+  </div>
+  {% elif strat == 'staggered' %}
+  <div class="row" style="background:var(--paper); padding:10px 14px; border-radius:var(--r-sm); border:1px solid var(--rule);">
+    <label>Number of Legs <input name="n_legs" type="number" min="2" max="10" value="{{ n_legs }}" style="width:4.5em; font-weight:700;"></label>
+    <label>Min Gap Between Kick-offs <input name="min_gap" type="number" min="60" max="720" value="{{ min_gap }}" style="width:5em;"> mins</label>
+    <label>Min Chance per Leg <input name="min_chance" type="number" min="5" max="95" value="{{ '%.0f'|format(min_chance) }}" style="width:4em;">%</label>
+    <button style="margin-left:auto;">Generate Timeline Slip</button>
+  </div>
+  {% elif strat == 'zone' %}
+  <div class="row" style="background:var(--paper); padding:10px 14px; border-radius:var(--r-sm); border:1px solid var(--rule);">
+    <label>Portfolio Formula:
+      <select name="preset" onchange="this.form.requestSubmit()" style="font-weight:650;">
+        {% for k, p in presets.items() %}
+        <option value="{{ k }}" {{ 'selected' if preset_key == k }}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button style="margin-left:auto;">Build Portfolio</button>
+  </div>
+  {% elif strat == 'round_robin' %}
+  <div class="row" style="background:var(--paper); padding:10px 14px; border-radius:var(--r-sm); border:1px solid var(--rule);">
+    <label>Match Pool Size <input name="pool_size" type="number" min="3" max="8" value="{{ pool_size }}" style="width:4em; font-weight:700;"> matches</label>
+    <label>Fold Size <select name="fold_size">
+      <option value="2" {{ 'selected' if fold_size == 2 }}>Doubles (2-Folds)</option>
+      <option value="3" {{ 'selected' if fold_size == 3 }}>Trebles (3-Folds)</option>
+      <option value="4" {{ 'selected' if fold_size == 4 }}>4-Folds</option>
+    </select></label>
+    <label>Stake per Slip <input name="unit_stake" type="number" step="1" min="1" value="{{ '%.0f'|format(unit_stake) }}" style="width:5em;"></label>
+    <button style="margin-left:auto;">Generate Permutations</button>
+  </div>
+  {% endif %}
+</form>
+
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{# 1. TARGET ODDS DISPLAY #}
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{% if strat == 'target' %}
+  <h2>🎯 Highest-Chance Accumulator for {{ '%.2f'|format(target_odds) }} Odds</h2>
+  {% if result.legs %}
+    <div class="figures target">
+      {{ m.figure("Combined Total Odds", '%.2f'|format(result.totals.odds)) }}
+      {{ m.figure("Win Probability", result.totals.prob|pct(1), "with " ~ result.totals.n ~ " legs") }}
+      {{ m.figure("Expected Return per 1", '%.3f'|format(result.totals.ret), cls='good' if result.totals.ret >= 0.90 else 'warn') }}
+      {% if result.stacked %}
+      {{ m.figure("If you stacked random favorites instead", result.stacked.prob|pct(1), "requires " ~ result.stacked.n ~ " legs") }}
+      {% endif %}
+    </div>
+    <p class="muted">Generated mathematically via Dynamic Knapsack. At {{ '%.2f'|format(result.totals.odds) }} odds, this exact set minimizes compounded bookmaker cut.</p>
+
+    <form method="post" class="picker" onsubmit="return false">
+      <div class="scroll"><table class="stack">
+        <tr><th>{{ m.tick_all() }}<th>Kick-off<th>Game<th>Pick<th class="num">Odds<th class="num">Chance<th class="num">Back per 1</tr>
+        {% for l in result.legs %}
+        <tr>
+          <td><input type="checkbox" name="sel" aria-label="Use pick" checked value='{{ l.sel|tojson }}' {{ m.pick_data(l.odds, l.prob, l.event_id) }}></td>
+          <td>{{ l.start_ms|kickoff }}</td>
+          <td><b>{{ l.match }}</b><br><span class="muted small">{{ l.tournament }}</span></td>
+          <td><b>{{ l.label }}</b> {{ m.zone_badge(l.zone, zl) }}</td>
+          <td class="num"><b>{{ '%.2f'|format(l.odds) }}</b></td>
+          <td class="num">{{ l.prob|pct(1) }}</td>
+          <td class="num">{{ m.ret(l.ret) }}</td>
+        </tr>
+        {% endfor %}
+      </table></div>
+      {{ m.make_bar("Make a SportyBet booking code from this optimal accumulator", split=True) }}
+    </form>
+  {% else %}
+    <p class="msg">No combination of picks reaches {{ '%.2f'|format(target_odds) }} odds under these filters. Try lowering the target odds, reducing the minimum chance, or importing more leagues.</p>
+  {% endif %}
+
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{# 2. TIME-STAGGERED DISPLAY #}
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{% elif strat == 'staggered' %}
+  <h2>⏱️ Time-Staggered Cash-Out Slip ({{ result.legs|length }} Legs)</h2>
+  {% if result.legs %}
+    <div class="figures target">
+      {{ m.figure("Accumulator Odds", '%.2f'|format(result.totals.odds)) }}
+      {{ m.figure("Win Probability", result.totals.prob|pct(1)) }}
+      {{ m.figure("Kick-off Spread", (result.min_gap_mins / 60)|round(1) ~ " hrs minimum gap") }}
+    </div>
+
+    <div class="card" style="margin: 16px 0; border-left: 4px solid var(--accent); background:var(--surface);">
+      <h3 style="margin:0 0 8px;">📈 Cash-Out &amp; Hedge Progression Timeline</h3>
+      <p class="muted">Because no two games overlap, each win dramatically increases your guaranteed cashout value before the next kick-off:</p>
+      
+      <div class="scroll"><table class="stack">
+        <tr>
+          <th>Step</th>
+          <th>Kick-off</th>
+          <th>Game &amp; Selection</th>
+          <th class="num">Leg Odds</th>
+          <th class="num">Accumulated Odds</th>
+          <th class="num">Est. Cashout Multiple</th>
+          <th>Hedging Milestone</th>
+        </tr>
+        {% for s in result.timeline %}
+        <tr>
+          <td><span class="pill {{ 'good' if s.is_final else '' }}">Leg {{ s.step }}</span></td>
+          <td>{{ s.leg.start_ms|kickoff }}</td>
+          <td><b>{{ s.leg.match }}</b><br><span class="muted small">{{ s.leg.label }}</span></td>
+          <td class="num"><b>{{ '%.2f'|format(s.leg.odds) }}</b></td>
+          <td class="num"><b>{{ '%.2f'|format(s.cum_odds) }}x</b></td>
+          <td class="num"><b class="good">{{ '%.2f'|format(s.cashout_estimate) }}x stake</b></td>
+          <td>
+            {% if s.step == 1 %}
+              <small class="muted">First game kicks off. Cashout unlocks upon completion.</small>
+            {% elif not s.is_final %}
+              <small class="good">If prior legs hit: Take cashout or let roll.</small>
+            {% else %}
+              <small class="warn"><b>Final leg:</b> Hedge opposing outcome for guaranteed locked-in profit!</small>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table></div>
+    </div>
+
+    <form method="post" class="picker" onsubmit="return false">
+      <div class="scroll"><table class="stack">
+        <tr><th>{{ m.tick_all() }}<th>Kick-off<th>Game<th>Pick<th class="num">Odds<th class="num">Chance</tr>
+        {% for l in result.legs %}
+        <tr>
+          <td><input type="checkbox" name="sel" aria-label="Use pick" checked value='{{ l.sel|tojson }}' {{ m.pick_data(l.odds, l.prob, l.event_id) }}></td>
+          <td>{{ l.start_ms|kickoff }}</td>
+          <td><b>{{ l.match }}</b></td>
+          <td><b>{{ l.label }}</b></td>
+          <td class="num"><b>{{ '%.2f'|format(l.odds) }}</b></td>
+          <td class="num">{{ l.prob|pct(1) }}</td>
+        </tr>
+        {% endfor %}
+      </table></div>
+      {{ m.make_bar("Make a SportyBet booking code for this Time-Staggered slip", split=True) }}
+    </form>
+  {% else %}
+    <p class="msg">Not enough chronological matches found with {{ min_gap }} minutes gap. Try widening your dates, lowering the gap, or importing more leagues.</p>
+  {% endif %}
+
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{# 3. ZONE-STRUCTURED DISPLAY #}
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{% elif strat == 'zone' %}
+  <h2>⚡ {{ result.preset.name }}</h2>
+  <p class="muted">{{ result.preset.description }}</p>
+
+  {% if result.legs %}
+    <div class="figures target">
+      {{ m.figure("Combined Total Odds", '%.2f'|format(result.totals.odds)) }}
+      {{ m.figure("Win Probability", result.totals.prob|pct(1)) }}
+      {{ m.figure("Expected Return", '%.3f'|format(result.totals.ret), cls='good' if result.totals.ret >= 0.88 else 'warn') }}
+    </div>
+
+    <form method="post" class="picker" onsubmit="return false">
+      <div class="scroll"><table class="stack">
+        <tr><th>{{ m.tick_all() }}<th>Role / Tier<th>Game<th>Pick<th class="num">Odds<th class="num">Chance</tr>
+        {% for l in result.legs %}
+        <tr>
+          <td><input type="checkbox" name="sel" aria-label="Use pick" checked value='{{ l.sel|tojson }}' {{ m.pick_data(l.odds, l.prob, l.event_id) }}></td>
+          <td><span class="pill good">{{ l.tier_name }}</span></td>
+          <td><b>{{ l.match }}</b><br><span class="muted small">{{ l.tournament }}</span></td>
+          <td><b>{{ l.label }}</b></td>
+          <td class="num"><b>{{ '%.2f'|format(l.odds) }}</b></td>
+          <td class="num">{{ l.prob|pct(1) }}</td>
+        </tr>
+        {% endfor %}
+      </table></div>
+      {{ m.make_bar("Make a SportyBet booking code from this portfolio formula", split=True) }}
+    </form>
+  {% else %}
+    <p class="msg">Could not satisfy all tiers of this formula with the currently available games. Try selecting another formula or adding more leagues.</p>
+  {% endif %}
+
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{# 4. ROUND-ROBIN DISPLAY #}
+{# ─────────────────────────────────────────────────────────────────────────── #}
+{% elif strat == 'round_robin' %}
+  <h2>🔄 Round-Robin Permutation System ({{ result.n_combinations }} Total Slips)</h2>
+  <p class="muted">A system bet splits your selections into multiple smaller parlays. You do not need every match to win to walk away in profit.</p>
+
+  {% if result.combinations %}
+    <div class="figures target">
+      {{ m.figure("Total Slips Generated", result.n_combinations ~ " tickets") }}
+      {{ m.figure("Total Staked (" ~ result.unit_stake ~ "/slip)", result.total_staked) }}
+      {{ m.figure("Break-Even Target", "Win " ~ result.break_even_wins ~ " of " ~ result.pool_size ~ " games", cls='good') }}
+      {{ m.figure("Maximum Possible Payout", result.max_payout, cls='good') }}
+    </div>
+
+    <div class="card" style="margin: 16px 0;">
+      <h3>📊 Profit / Loss Scenarios</h3>
+      <div class="scroll"><table class="stack">
+        <tr>
+          <th>Matches Won</th>
+          <th>Winning Slips</th>
+          <th class="num">Estimated Return</th>
+          <th class="num">Net Profit / Loss</th>
+          <th>Status</th>
+        </tr>
+        {% for sc in result.scenarios %}
+        <tr>
+          <td><b>{{ sc.wins }} of {{ result.pool_size }} matches</b></td>
+          <td>{{ sc.winning_slips }} of {{ result.n_combinations }} slips</td>
+          <td class="num"><b>{{ sc.estimated_return }}</b></td>
+          <td class="num"><b class="{{ 'good' if sc.is_profit else 'bad' }}">{{ '+' if sc.net_profit > 0 else '' }}{{ sc.net_profit }}</b></td>
+          <td><span class="pill {{ 'good' if sc.is_profitable else 'warn' }}">{{ 'PROFIT' if sc.is_profitable else 'PARTIAL RETURN' }}</span></td>
+        </tr>
+        {% endfor %}
+      </table></div>
+    </div>
+
+    <h3>🎟️ Generated Slips Breakdown</h3>
+    <div class="scroll"><table class="stack">
+      <tr>
+        <th>Slip #</th>
+        <th>Matches in Ticket</th>
+        <th class="num">Odds</th>
+        <th class="num">Win Chance</th>
+        <th class="num">Potential Return</th>
+      </tr>
+      {% for c in result.combinations %}
+      <tr>
+        <td><b>Slip {{ loop.index }}</b></td>
+        <td>
+          {% for l in c.legs %}
+            <div><b>{{ l.match }}</b>: <span class="muted">{{ l.label }} ({{ l.odds }})</span></div>
+          {% endfor %}
+        </td>
+        <td class="num"><b>{{ '%.2f'|format(c.odds) }}</b></td>
+        <td class="num">{{ c.prob|pct(1) }}</td>
+        <td class="num"><b class="good">{{ c.payout }}</b></td>
+      </tr>
+      {% endfor %}
+    </table></div>
+
+    <form method="post" class="picker" onsubmit="return false">
+      <div style="display:none;">
+        {% for l in result.pool %}
+        <input type="checkbox" name="sel" checked value='{{ l.sel|tojson }}' {{ m.pick_data(l.odds, l.prob, l.event_id) }}>
+        {% endfor %}
+      </div>
+      {{ m.make_bar("Make SportyBet booking codes for this Round-Robin pool (" ~ result.pool|length ~ " matches)", split=True, note="Splits into individual booking codes ready to stake on SportyBet.") }}
+    </form>
+  {% else %}
+    <p class="msg">Not enough matches available for a Round-Robin pool. Try importing more leagues or expanding date range.</p>
+  {% endif %}
+
+{% endif %}
+
+{% endif %}
+{% endblock %}

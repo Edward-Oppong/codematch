@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Where SportyBet keeps least · CodeMatch{% endblock %}
+{% block body %}
+{{ m.flow_tracker(2) }}
+
+<h1>Where SportyBet keeps least</h1>
+<p class="lede">For every kind of market, how much of each stake SportyBet keeps on average per pick (1 minus odds times
+SportyBet's own chance), over the {{ n_games }} saved
+game{{ 's' if n_games != 1 }} from {{ start.strftime('%a %d %b') }} to {{ end.strftime('%a %d %b') }}. Smallest first.</p>
+
+{{ m.hunt_tabs('margins', start, end) }}
+
+<form method="get" class="card filters">
+  {% if imported %}
+  <div class="row" style="align-items:center; justify-content:space-between;">
+    <span><b>Filter by League:</b> <small class="muted">({{ imported|length }} imported)</small></span>
+    <span class="small"><a href="{{ url_for('leagues.index') }}#get-leagues" style="color:var(--accent); font-weight:600;">+ Get More Leagues</a></span>
+  </div>
+  <div class="league-filter-box" role="group" aria-label="Leagues">
+    {% for l in imported %}<label class="chip"><input type="checkbox" name="tid" value="{{ l.tournament_id }}"
+      {{ 'checked' if l.tournament_id in chosen and not all_chosen }}>{{ l.tournament }} <small>{{ l.n }}</small></label>{% endfor %}
+  </div>
+  {% endif %}
+  <div class="row">
+    <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+    <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+    <label><input type="checkbox" name="upcoming" value="1" {{ 'checked' if upcoming }}> Only games not yet started</label>
+  </div>
+  <div class="row">
+    <label>Markets <select name="fam"><option value="">all</option>
+      {% for f in families %}<option value="{{ f }}" {{ 'selected' if fam == f }}>{{ f|capitalize }}</option>{% endfor %}</select></label>
+    <label>On at least <input name="min" value="{{ min_games }}" size="3" inputmode="numeric"> games</label>
+    <button>Show</button>
+  </div>
+</form>
+
+{% if not n_games %}
+<p class="msg">No saved games in these dates and leagues. Fetch some leagues first, or widen the dates.</p>
+{% else %}
+<p class="muted">Why it matters: for legs on different games, a code's chance is its total odds divided into the
+product of the legs' returns. At the same odds, legs from markets where SportyBet keeps less give a code that wins more
+often. The margin changes with the odds, so it's split by zone too; a market's overall figure leans on the zones it
+has most picks in. These are SportyBet's own prices; a small margin is a cheaper bet, not a likelier one.</p>
+
+<div class="card" style="margin: 16px 0 24px; border-left: 4px solid var(--accent);">
+  <h3>⚡ Build Code from Lowest-Margin Markets</h3>
+  <p class="muted">Combine only selections where SportyBet takes the smallest cut (&lt;10%) into an optimal booking slip.</p>
+  <form method="get" class="inline-goal" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0">
+    {% for k in ('start', 'end', 'min') %}
+      {% if request.args.get(k) %}<input type="hidden" name="{{ k }}" value="{{ request.args.get(k) }}">{% endif %}
+    {% endfor %}
+    {% for tid in request.args.getlist('tid') %}<input type="hidden" name="tid" value="{{ tid }}">{% endfor %}
+    <label>Target Odds at least <input name="goal" type="number" min="1.05" step="0.1" value="{{ '%.2f'|format(goal) if goal else '2.50' }}" style="width:7em"></label>
+    <label>Market: <select name="fam">
+      <option value="">All Low-Margin Markets</option>
+      <option value="goals" {{ 'selected' if fam == 'goals' }}>Goals &amp; Totals</option>
+      <option value="bookings" {{ 'selected' if fam == 'bookings' }}>🟨 Bookings &amp; Cards</option>
+      <option value="corners" {{ 'selected' if fam == 'corners' }}>🚩 Corners</option>
+      {% for f in families if f not in ('goals', 'bookings', 'corners') %}
+      <option value="{{ f }}" {{ 'selected' if fam == f }}>{{ f|capitalize }}</option>
+      {% endfor %}
+    </select></label>
+    <button class="secondary">Build Slip</button>
+  </form>
+
+  {% if built_slip and built_slip.legs %}
+  <form method="post" class="picker" onsubmit="return false" style="margin-top:14px">
+    <div class="scroll"><table class="stack">
+      <tr>
+        <th>{{ m.tick_all() }}</th>
+        <th>Game &amp; Kick-off</th>
+        <th>Pick</th>
+        <th class="num">Odds</th>
+        <th class="num">Chance</th>
+        <th class="num">House Margin</th>
+      </tr>
+      {% for l in built_slip.legs %}
+      <tr>
+        <td>{% if l.sel %}<input type="checkbox" name="sel" checked aria-label="Select pick" value='{{ l.sel|tojson }}' {{ m.pick_data(l.odds, l.prob, l.event_id) }}>{% endif %}</td>
+        <td><b>{{ l.match }}</b><br><span class="muted">{{ l.tournament }}, {{ l.start_ms|kickoff }}</span></td>
+        <td data-label="Pick"><b>{{ l.label }}</b></td>
+        <td data-label="Odds" class="num"><b>{{ '%.2f'|format(l.odds) }}</b></td>
+        <td data-label="Chance" class="num">{{ l.prob|pct(1) }}</td>
+        <td data-label="House Margin" class="num"><span class="good">{{ '%.1f%%'|format((1.0 - l.ret) * 100) if l.ret else '-' }}</span></td>
+      </tr>
+      {% endfor %}
+    </table></div>
+    <div class="figures" style="margin:12px 0">
+      {{ m.figure("Total Odds", '%.2f'|format(built_slip.totals.odds)) }}
+      {{ m.figure("Combined Chance", built_slip.totals.prob|one_in) }}
+      {{ m.figure("Back per 1", '%.3f'|format(built_slip.totals.ret), cls='good' if built_slip.totals.ret > 0.85 else '') }}
+    </div>
+    {{ m.make_bar("Make a SportyBet booking code from these lowest-margin picks") }}
+  </form>
+  {% elif goal %}
+  <p class="msg warn">No combination reached total odds of {{ '%.2f'|format(goal) }} from low-margin markets. Try lowering the target odds or selecting more leagues.</p>
+  {% endif %}
+</div>
+
+<h2>By market</h2>
+{% if by_market %}
+<div class="scroll"><table class="stack">
+<tr><th>Market<th class="num">Games<th class="num">Picks<th class="num">SportyBet keeps
+{% for k, label, lo, hi in zones %}<th class="num">{{ label }}<br><span class="muted">{{ '%.2f'|format(lo) }}{{ ' to %.2f'|format(hi - 0.01) if hi < 100 else '+' }}</span>{% endfor %}</tr>
+{% for r in by_market %}<tr>
+<td>{{ r.market }}{% if r.family != 'goals' %} <span class="muted">{{ r.family }}</span>{% endif %}
+<td data-label="Games" class="num">{{ r.games }}<td data-label="Picks" class="num">{{ r.n }}
+<td data-label="SportyBet keeps" class="num"><b>{{ r.kept|pct(1) }}</b>
+{% for k, label, lo, hi in zones %}<td data-label="{{ label }}" class="num">{% if r['n_' ~ k] %}{{ r['z_' ~ k]|pct(1) }} <small class="muted">{{ r['n_' ~ k] }}</small>{% else %}<span class="muted">-</span>{% endif %}{% endfor %}
+</tr>{% endfor %}
+</table></div>
+<p class="muted">The small number next to each zone figure is how many picks it averages. Markets on fewer than
+{{ min_games }} games are left out.</p>
+{% else %}<p class="muted">No market appears on {{ min_games }} or more of these games{{ ' in ' ~ fam if fam }}.</p>{% endif %}
+
+<h2>By league</h2>
+<div class="scroll"><table class="stack">
+<tr><th>League<th class="num">Games{% for f in main_fams %}<th class="num">{{ f|capitalize }}{% endfor %}</tr>
+{% for l in leagues %}<tr><td>{{ l.name }}<td data-label="Games" class="num">{{ l.games }}
+{% for f in main_fams %}<td data-label="{{ f|capitalize }}" class="num">{% if l.fams[f] %}{{ l.fams[f].kept|pct(1) }}{% else %}<span class="muted">-</span>{% endif %}{% endfor %}</tr>{% endfor %}
+</table></div>
+<p class="muted">Average kept over every saved pick in that league and family. Games fetched with only their league
+markets have fewer kinds of pick, which moves these figures; compare leagues fetched the same way.</p>
+{% endif %}
+{% endblock %}

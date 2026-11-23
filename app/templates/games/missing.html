@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Game not imported · CodeMatch{% endblock %}
+{% block body %}
+<a class="back" href="{{ url_for('games.index') }}">&larr; Games</a>
+<h1>This game isn't imported yet</h1>
+<p class="muted">{{ event_id }}</p>
+{{ m.snippet(snippet, "Fetch every market for this game", open=True) }}
+{% endblock %}

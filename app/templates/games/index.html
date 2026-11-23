@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Games · CodeMatch{% endblock %}
+{% block body %}
+<h1>Games</h1>
+<p class="lede">Every imported game. Open one to see all its markets and the safer or riskier picks around any of them.</p>
+
+<nav class="tabs" aria-label="Views">
+  <b>All Games</b>
+  <a href="{{ url_for('games.steam', start=start.isoformat(), end=end.isoformat()) }}">Odds Steam & Line Movement</a>
+</nav>
+<form method="get" class="card filters"><div class="row">
+  <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+  <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+  <label>Team <input name="q" value="{{ q }}" placeholder="Arsenal"></label>
+  <button>Show</button></div>
+  {% if leagues %}<div class="row chips" role="group" aria-label="Leagues">
+    <span>Leagues:</span>
+    {% for l in leagues %}<label class="chip"><input type="checkbox" name="tid" value="{{ l.tournament_id }}"
+      {{ 'checked' if l.tournament_id in chosen }} onchange="this.form.requestSubmit()">{{ l.tournament }} <small>{{ l.n }}</small></label>{% endfor %}
+    {% if chosen %}<a href="?start={{ start.isoformat() }}&end={{ end.isoformat() }}&q={{ q|urlencode }}">Show all</a>{% else %}<span class="muted">all shown</span>{% endif %}
+  </div>{% endif %}
+</form>
+{% if finished_snippet %}
+{{ m.snippet(finished_snippet, "Fetch final scores for " ~ ([n_finished_unsettled, 40]|min) ~ " finished match" ~ ('es' if n_finished_unsettled != 1 else '') ~ " waiting for results",
+   note="Pulls actual full-time and half-time scores from SportyBet to settle games and compare predictions.") }}
+{% endif %}
+{% if snippet %}{{ m.snippet(snippet, "Fetch every market for the " ~ ([n_partial, 40]|min) ~ " games below that only have league markets",
+   note=("Only the first 40 are included; narrow the dates for the rest. " if n_partial > 40 else "") ~ "One game every 1.5 seconds.") }}{% endif %}
+{% if games %}
+<div class="scroll"><table>
+<tr><th>Kick-off<th>Game<th>League<th>Markets<th>Result<th>Odds imported</tr>
+{% for g in games %}<tr class="{{ 'past' if (g.start_ms or 0) < now_ms() }}">
+<td>{{ g.start_ms|kickoff }}
+<td><a href="{{ url_for('games.game', event_id=g.event_id) }}">{{ g.home }} v {{ g.away }}</a>
+<td class="muted">{{ g.category or '' }} {{ g.tournament or '' }}
+<td>{{ g.n_markets }}{% if g.n_markets < 100 %} <span class="muted">(league only)</span>{% endif %}
+<td>
+  {% set res = results_map.get(g.event_id) if results_map else none %}
+  {% if res %}
+    <span class="pill" style="font-weight:700;">FT {{ res[0] + res[2] }}-{{ res[1] + res[3] }}</span>
+  {% elif (g.start_ms or 0) < now_ms() %}
+    <span class="muted small">Played (no score)</span>
+  {% else %}
+    <span class="muted">-</span>
+  {% endif %}
+</td>
+<td class="muted">{{ g.saved_at|ago }}</tr>{% endfor %}
+</table></div>
+{% else %}<p class="muted">No imported games in these dates. Import a league from the <a href="{{ url_for('leagues.index') }}">Leagues</a> page first.</p>{% endif %}
+{% endblock %}

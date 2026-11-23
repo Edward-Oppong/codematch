@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Choose the bet · Leagues · CodeMatch{% endblock %}
+{% block body %}
+{{ m.flow_tracker(2) }}
+
+<h1>Market Screener</h1>
+<p class="lede">Choose the bet, find the teams: every team or game in your leagues and dates that offers the bets you pick, ranked, and the code with the highest chance for the total odds you want.</p>
+{% set qs = {'start': start.isoformat(), 'end': end.isoformat(), 'tid': (chosen|list if not all_chosen else [])} %}
+{{ m.hunt_tabs('screen', start, end) }}
+
+{% if not imported %}
+<p class="msg">No leagues imported yet. Fetch some from <a href="{{ url_for('leagues.index') }}">Leagues</a> first.</p>
+{% else %}
+<form method="get" class="card filters" id="screen">
+  <input type="hidden" name="mode" value="screen"><input type="hidden" name="sent" value="1">
+  <div class="row" style="align-items:center; justify-content:space-between;">
+    <span><b>Filter by League:</b> <small class="muted">({{ imported|length }} imported)</small></span>
+    <span class="small"><a href="{{ url_for('leagues.index') }}#get-leagues" style="color:var(--accent); font-weight:600;">+ Get More Leagues</a></span>
+  </div>
+  <div class="league-filter-box" role="group" aria-label="Leagues">
+    {% for l in imported %}<label class="chip"><input type="checkbox" name="tid" value="{{ l.tournament_id }}"
+      {{ 'checked' if l.tournament_id in chosen and not all_chosen }}>{{ l.tournament }} <small>{{ l.n }}</small></label>{% endfor %}
+  </div>
+  <div class="row">
+    <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+    <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+    <label><input type="checkbox" name="upcoming" value="1" {{ 'checked' if upcoming }}> Only games not yet started</label>
+  </div>
+
+  <h3>Bets</h3>
+  {% if not groups %}<p class="muted">No saved games in these dates and leagues.</p>{% endif %}
+  {% for g in groups if g.cat != 'other' %}
+  <div class="row chips bet-group" role="group" aria-label="{{ g.label }}">
+    <span class="bet-cat">{{ g.label }}</span>
+    {% for t in g.types %}<label class="chip"><input type="checkbox" name="bt" value="{{ t.bkey }}" {{ 'checked' if t.bkey in keys }}>{{ t.bname }} <small>{{ t.games }}</small></label>{% endfor %}
+  </div>
+  {% endfor %}
+  {% for g in groups if g.cat == 'other' %}
+  <details class="other-bets"{{ ' open' if g.n_on }}>
+    <summary>Other markets <span class="muted">({{ g.types|length }} bet types{% if g.n_on %}, {{ g.n_on }} chosen{% endif %}; half-time, handicaps,
+      combinations and more, mostly from games fetched in full)</span></summary>
+    <input type="search" placeholder="Find a bet, e.g. 1H, handicap, & BTTS" aria-label="Find a bet" class="bet-find">
+    <div class="bet-list">
+      {% for t in g.types %}<label><input type="checkbox" name="bt" value="{{ t.bkey }}" {{ 'checked' if t.bkey in keys }}> {{ t.bname }} <small class="muted">{{ t.games }}</small></label>{% endfor %}
+    </div>
+  </details>
+  {% endfor %}
+  <p class="muted">The small number is how many of these games offer that bet. "Team" bets combine SportyBet's home
+  and away markets, so each team is listed by name.</p>
+
+  <div class="row">
+    <label>Teams <select name="side">
+      <option value="" {{ 'selected' if not side }}>home and away</option>
+      <option value="home" {{ 'selected' if side == 'home' }}>home teams only</option>
+      <option value="away" {{ 'selected' if side == 'away' }}>away teams only</option></select></label>
+    <label>Odds from <input name="mino" value="{{ '%g'|format(mino) }}" size="4" inputmode="decimal"> to
+      <input name="maxo" value="{{ '%g'|format(maxo) if maxo < 1000 else '' }}" size="4" placeholder="any" inputmode="decimal"></label>
+    <label>SportyBet's chance at least <input name="minp" value="{{ '%g'|format(minp) if minp else '' }}" size="3" placeholder="any" inputmode="decimal">%</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" name="one" value="1" {{ 'checked' if one }}> One selection per match</label>
+    <label><input type="checkbox" name="noconf" value="1" {{ 'checked' if noconf }}> Leave out selections that contradict another from the same match</label>
+    <label>List by <select name="rank">{% for k, v in ranks.items() %}<option value="{{ k }}" {{ 'selected' if rank == k }}>{{ v }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="row goal">
+    <b>Find the highest-chance selections for total odds of at least</b>
+    <input name="todds" value="{{ '%g'|format(goal) if goal else '' }}" size="5" placeholder="e.g. 3" inputmode="decimal" aria-label="Target total odds">
+    <label>with at most <input name="maxlegs" value="{{ max_legs }}" size="3" inputmode="numeric"> selections</label>
+  </div>
+  <button>Show</button>
+</form>
+<script>
+document.querySelectorAll(".bet-find").forEach(box => box.addEventListener("input", () => {
+  const q = box.value.trim().toLowerCase();
+  box.nextElementSibling.querySelectorAll("label").forEach(l => {
+    l.hidden = q && !l.textContent.toLowerCase().includes(q) && !l.querySelector("input").checked;
+  });
+}));
+</script>
+
+<p class="muted"><b>What the numbers are.</b> <i>Odds</i> are SportyBet's displayed odds. <i>Chance</i> is the probability
+SportyBet sends with each of its odds: its own estimate, with its margin taken out. It's shown only where that market's
+probabilities add up as they should; elsewhere it says "not given" rather than guess. <i>Market margin</i> is what
+SportyBet keeps across the whole market, worked out from the odds of every outcome alone, so it's shown only when the
+whole market is on offer. It's an average: SportyBet charges unlikely outcomes more than likely ones, so one pick can
+cost more than its market. <i>Back per 1</i> is that pick's own average return, odds times SportyBet's chance, so it is
+only as good as SportyBet's chance. CodeMatch has no prediction of its own.</p>
+
+{% if goal %}
+<h2>Highest chance for total odds of {{ '%g'|format(goal) }}</h2>
+{% if combos %}
+{% set best = combos[0] %}
+<div class="figures target">
+  {{ m.figure("Estimated chance", best.t.prob|pct(1), "not a guarantee") }}
+  {{ m.figure("Total odds", '%.2f'|format(best.t.odds)) }}
+  {{ m.figure("Selections", best.k) }}
+  {{ m.figure("Back per 1 staked", '%.3f'|format(best.t.ret), "on SportyBet's chances", cls='warn' if best.t.ret < 0.9 else '') }}
+</div>
+<p class="muted">Out of the {{ n_usable }} game{{ 's' if n_usable != 1 }} with a selection inside your filters and a reliable
+chance, at most one per match and at most {{ max_legs }} in all. The estimated chance multiplies SportyBet's chances for
+each selection, which assumes the games don't affect each other. It is an estimate built on SportyBet's own view, not a
+guarantee: a code with an 80% chance still loses one time in five. Refund bets (draw no bet, whole-number lines) are left out here.</p>
+<form method="post" class="picker" onsubmit="return false">
+<div class="scroll"><table class="stack">
+<tr><th>{{ m.tick_all() }}<th>Team or game<th>Bet<th>Kick-off<th class="num">Odds<th class="num">Chance<th class="num">Back per 1<th class="num">Market margin</tr>
+{% for l in best.legs %}<tr>
+<td><input type="checkbox" name="sel" aria-label="Use this selection" checked value='{{ l.sel|tojson }}'{{ m.pick_data(l.odds, l.prob, l.event_id) }}>
+<td>{% if l.team %}<b>{{ l.team }}</b> <span class="muted">{{ 'home' if l.side == 'home' else 'away' }} v {{ l.opponent }}</span>{% else %}<b>{{ l.home }} v {{ l.away }}</b>{% endif %}<br><span class="muted">{{ l.tournament }}</span>
+<td data-label="Bet">{{ l.bname }} {{ m.zone_badge(l.zone, zl) }}
+<td data-label="Kick-off">{{ l.start_ms|kickoff }}
+<td data-label="Odds" class="num">{{ '%.2f'|format(l.odds) }}<td data-label="Chance" class="num">{{ l.prob|pct(1) }}
+<td data-label="Back per 1" class="num">{{ m.ret(l.ret) }}
+<td data-label="Market margin" class="num">{{ l.mkt_kept|pct(1) if l.mkt_kept is not none else '-' }}
+</tr>{% endfor %}
+<tr class="total"><td colspan="4">Together, estimated<td class="num">{{ '%.2f'|format(best.t.odds) }}<td class="num">{{ best.t.prob|pct(1) }}<td class="num">{{ m.ret(best.t.ret) }}<td></tr>
+</table></div>
+{{ m.make_bar("Make a SportyBet booking code from " ~ ('this selection' if best.k == 1 else 'these ' ~ best.k ~ ' selections')) }}
+</form>
+{% if combos|length > 1 %}
+<h3>Other ways to reach {{ '%g'|format(goal) }}, by number of selections</h3>
+<p class="muted">The best code for each number of selections, ranked by estimated chance. Fewer selections usually wins
+more often, because each one adds the bookmaker's margin.</p>
+<div class="scroll"><table>
+<tr><th class="num">Selections<th class="num">Total odds<th class="num">Estimated chance<th>The selections</tr>
+{% for c in combos %}<tr class="{{ 'sel' if loop.first }}"><td class="num">{{ c.k }}<td class="num">{{ '%.2f'|format(c.t.odds) }}<td class="num">{{ c.t.prob|pct(1) }}
+<td><details><summary>{% for l in c.legs[:3] %}{{ l.team or (l.home ~ ' v ' ~ l.away) }}: {{ l.bname }}{{ ', ' if not loop.last }}{% endfor %}{% if c.legs|length > 3 %}, and {{ c.legs|length - 3 }} more{% endif %}</summary>
+<form method="post" onsubmit="return false">
+<ul class="plain">{% for l in c.legs %}<li>{{ l.team or (l.home ~ ' v ' ~ l.away) }}: {{ l.bname }} at {{ '%.2f'|format(l.odds) }} ({{ l.prob|pct(1) }})<input type="hidden" name="sel" value='{{ l.sel|tojson }}'></li>{% endfor %}</ul>
+<div class="fetch"><button type="button" class="secondary" data-cm-queue="{{ url_for('codes.make') }}">Make this code</button><span class="cm-status muted" aria-live="polite"></span></div>
+</form></details></tr>{% endfor %}
+</table></div>
+{% endif %}
+{% else %}
+<p class="msg">No selections inside your filters reach total odds of {{ '%g'|format(goal) }} with at most {{ max_legs }} selections
+{% if n_usable %}(from {{ n_usable }} game{{ 's' if n_usable != 1 }}){% endif %}. Allow more selections, lower the odds,
+widen the odds range or the minimum chance, or choose more bets.</p>
+{% endif %}
+{% endif %}
+
+<h2>The list <span class="muted">({{ rows|length }})</span></h2>
+{% if not keys %}<p class="muted">Tick at least one bet above.</p>
+{% elif not rows %}<p class="muted">No selection in these {{ n_games }} games matches your bets and filters.</p>
+{% else %}
+<p class="muted">{{ rows|length }} selection{{ 's' if rows|length != 1 }} from {{ n_games }} game{{ 's' if n_games != 1 }}, by {{ ranks[rank] }}.
+{% if dropped %}{{ dropped }} more left out by {{ 'one selection per match' if one else 'leaving out contradictions' }}.{% endif %}
+{% if n_unreliable %}{{ n_unreliable }} ha{{ 've' if n_unreliable != 1 else 's' }} no reliable chance from SportyBet, so {{ 'they show' if n_unreliable != 1 else 'it shows' }} odds only and {{ 'are' if n_unreliable != 1 else 'is' }} never used in the search.{% endif %}</p>
+<form method="post" class="picker" onsubmit="return false">
+<div class="scroll"><table class="stack">
+<tr><th>{{ m.tick_all("Tick every selection in the list") }}<th>Team or game<th>Home or away<th>Kick-off<th>Bet<th class="num">Odds<th class="num">Chance<th class="num">Back per 1<th class="num">Market margin</tr>
+{% for r in rows[:400] %}<tr>
+<td><input type="checkbox" name="sel" aria-label="Use this selection" value='{{ r.sel|tojson }}'{{ m.pick_data(r.odds, r.prob if r.reliable else none, r.event_id) }}>
+<td>{% if r.team %}<b>{{ r.team }}</b> <span class="muted">v {{ r.opponent }}</span>{% else %}<b>{{ r.home }} v {{ r.away }}</b>{% endif %}<br><a class="muted" href="{{ url_for('games.game', event_id=r.event_id, fam=r.family, pick=r.label) }}">{{ r.tournament }}</a>
+<td data-label="Home or away">{{ r.side or '-' }}
+<td data-label="Kick-off">{{ r.start_ms|kickoff }}
+<td data-label="Bet">{{ r.bname }} {{ m.zone_badge(r.zone, zl) }}{% if r.push %} <span class="muted">can refund</span>{% endif %}
+<td data-label="Odds" class="num">{{ '%.2f'|format(r.odds) }}
+<td data-label="Chance" class="num">{% if r.reliable %}{{ r.prob|pct(1) }}{% else %}<span class="muted">not given</span>{% endif %}
+<td data-label="Back per 1" class="num">{{ m.ret(r.ret) if r.reliable else '-' }}
+<td data-label="Market margin" class="num">{{ r.mkt_kept|pct(1) if r.mkt_kept is not none else '-' }}
+</tr>{% endfor %}
+</table></div>
+{% if rows|length > 400 %}<p class="muted">Showing the first 400; narrow the filters to see the rest.</p>{% endif %}
+{{ m.make_bar("Make SportyBet booking codes from the ticked selections", split=True,
+              note="Tick selections one by one, or the box at the top for the whole list. It fetches each game again to check the odds, then makes the codes; you check them and decide on SportyBet.") }}
+</form>
+<p class="muted">For a refund bet the chance is of winning outright; the stake comes back in the refund case. Several
+selections from one match aren't independent: the code review works out their joint chance where it can.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Leagues · CodeMatch{% endblock %}
+{% block body %}
+{{ m.flow_tracker(1) }}
+
+<h1>Leagues &amp; One Pick per Game</h1>
+<p class="lede">One pick per game across the leagues and dates you choose, and what happens to the chance as you combine them.</p>
+
+{{ m.hunt_tabs('leagues', start, end) }}
+{% set zl = {} %}{% for k, label, lo, hi in zones %}{% set _ = zl.update({k: label}) %}{% endfor %}
+
+{% if imported %}
+<form method="get" class="card filters" id="pickfilters">
+  <div class="row" style="align-items:center; justify-content:space-between;">
+    <span><b>Filter by League:</b> <small class="muted">({{ imported|length }} imported)</small></span>
+    <span class="small" style="display:flex; gap:8px;">
+      {% if not all_chosen %}<a href="{{ show_all_url }}">Show all</a>{% else %}<span class="muted">all shown; tick one or more to narrow it down</span>{% endif %} · 
+      <a href="#get-leagues" style="color:var(--accent); font-weight:600;">+ Get More Leagues</a>
+    </span>
+  </div>
+  <div class="league-filter-box" role="group" aria-label="Leagues">
+    {% for l in imported %}<label class="chip"><input type="checkbox" name="tid" value="{{ l.tournament_id }}"
+      {{ 'checked' if l.tournament_id in chosen and not all_chosen }} onchange="this.form.requestSubmit()">{{ l.tournament }} <small>{{ l.n }}</small></label>{% endfor %}
+  </div>
+  <div class="row">
+    <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+    <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+    <label><input type="checkbox" name="upcoming" value="1" {{ 'checked' if f.upcoming }}> Only games not yet started</label>
+  </div>
+  <div class="row">
+    <span>Markets:</span>
+    {% for fam in all_fams %}<label><input type="checkbox" name="fam" value="{{ fam }}" {{ 'checked' if fam in fams }}> {{ fam|capitalize }}</label>{% endfor %}
+  </div>
+  <div class="row">
+    <label>Odds zone <select name="zone">
+      {% for k, label, lo, hi in zones %}<option value="{{ k }}" {{ 'selected' if zone == k }}>{{ label }} ({{ '%.2f'|format(lo) }}{{ ' to %.2f'|format(hi - 0.01) if hi < 100 else '+' }})</option>{% endfor %}
+      <option value="any" {{ 'selected' if zone == 'any' }}>Any odds</option>
+    </select></label>
+    <label>Chance <input name="minp" value="{{ '%g'|format(f.minp) }}" size="3">% to <input name="maxp" value="{{ '%g'|format(f.maxp) }}" size="3">%</label>
+    <label>Rank by <select name="by">
+      <option value="prob" {{ 'selected' if f.by == 'prob' }}>most likely</option>
+      <option value="return" {{ 'selected' if f.by == 'return' }}>smallest margin</option></select></label>
+  </div>
+  <div class="row">
+    <label>Target: the code should win at least <input name="target" value="{{ target }}" size="3" placeholder="70" inputmode="decimal">% of the time</label>
+    <span class="muted">Leave empty to see every pick.</span>
+  </div>
+  <div class="row">
+    <label>Highest chance for total odds of at least <input name="todds" value="{{ todds }}" size="4" placeholder="2.5" inputmode="decimal"></label>
+    <span class="muted">Uses any pick inside the zone, chance and market filters above, at most one per game. A minimum chance keeps every leg safe on its own.</span>
+  </div>
+  <button>Show picks</button>
+</form>
+
+{% if best %}
+<h2>Highest chance for odds of {{ '%g'|format(best.goal) }}</h2>
+{% if best.legs %}
+<div class="figures target">
+  {{ m.figure("Chance this code wins", best.t.prob|pct(1), "with " ~ best.t.n ~ " leg" ~ ('s' if best.t.n != 1 else '')) }}
+  {% if best.stacked %}{{ m.figure("Stacking the most likely picks instead", best.stacked.prob|pct(1), "with " ~ best.stacked.n ~ " legs") }}{% endif %}
+  {{ m.figure("Total odds", '%.2f'|format(best.t.odds)) }}
+  {{ m.figure("Back per 1 staked", '%.3f'|format(best.t.ret), cls='warn' if best.t.ret < 0.9 else '') }}
+</div>
+<p class="muted">Out of every pick inside your filters on these {{ scanned }} games, this is the set that reaches the odds and
+wins most often. At the same odds a code's chance is set only by how much margin its legs carry together, so it tends
+to use few legs with small margins rather than many near-certain ones.
+{% if not best.stacked %}Stacking the most likely pick of every game doesn't even reach these odds.{% endif %}
+{% if zone != 'any' %}Only {{ zl[zone]|lower }} picks are used; choose "Any odds" to let it use every pick.{% endif %}</p>
+<form method="post" class="picker" onsubmit="return false">
+<div class="scroll"><table class="stack"><tr><th>{{ m.tick_all() }}<th>Kick-off<th>Game<th>Pick<th class="num">Odds<th class="num">Chance<th class="num">Back per 1</tr>
+{% for l in best.legs %}<tr><td><input type="checkbox" name="sel" aria-label="Use this pick" checked value='{{ l.sel|tojson }}'{{ m.pick_data(l.odds, l.prob, l.event_id) }}><td>{{ l.start_ms|kickoff }}
+<td data-label="Game"><a href="{{ url_for('games.game', event_id=l.event_id, fam=l.family, pick=l.label) }}">{{ l.match }}</a><br><span class="muted">{{ l.tournament }}</span>
+<td data-label="Pick">{{ l.label }} {{ m.zone_badge(l.zone, zl) }}
+<td data-label="Odds" class="num">{{ '%.2f'|format(l.odds) }}<td data-label="Chance" class="num">{{ l.prob|pct(1) }}<td data-label="Back per 1" class="num">{{ m.ret(l.ret) }}
+</tr>{% endfor %}
+<tr class="total"><td colspan="4">Together<td class="num">{{ '%.2f'|format(best.t.odds) }}<td class="num">{{ best.t.prob|pct(1) }}<td class="num">{{ m.ret(best.t.ret) }}</tr>
+</table></div>
+{{ m.make_bar("Make a SportyBet booking code from " ~ ('this pick' if best.legs|length == 1 else 'these ' ~ best.legs|length ~ ' picks')) }}
+</form>
+{% else %}<p class="msg">No set of picks inside your filters reaches odds of {{ '%g'|format(best.goal) }}. Lower the odds, widen the zone or the chance range, or add dates and leagues.</p>{% endif %}
+{% endif %}
+
+<h2>One pick per game</h2>
+<p><a href="{{ url_for('leagues.margins', start=start.isoformat(), end=end.isoformat(), tid=(chosen|list if not all_chosen else [])) }}">Where SportyBet keeps least</a><span class="muted">:
+the average margin by market and league over these games.</span></p>
+<p class="muted">{{ scanned }} games from {{ start.strftime('%a %d %b') }} to {{ end.strftime('%a %d %b') }};
+{{ rows|length }} have a pick inside your filters{% if no_pick %}, {{ no_pick }} don't{% endif %}.
+Each game's pick is its {{ 'most likely' if f.by == 'prob' else 'smallest-margin' }} option in the chosen zone and markets.
+{% if league_only %}{{ league_only }} of them only have their league markets so far; fetch every market from the league's page
+for more to choose from.{% endif %}</p>
+{% if code %}
+<div class="figures target">
+  {% if code.n %}
+  {{ m.figure("Picks that fit your " ~ code.target|round|int ~ "% target", code.n ~ " of " ~ rows|length) }}
+  {{ m.figure("Code chance", code.row.acc_prob|pct(1)) }}
+  {{ m.figure("Code odds", '%.2f'|format(code.row.acc_odds)) }}
+  {{ m.figure("Back per 1 staked", '%.2f'|format(code.row.acc_ret)) }}
+  {% else %}
+  {{ m.figure("Picks that fit your " ~ code.target|round|int ~ "% target", "none") }}
+  {% endif %}
+</div>
+<p class="muted">{% if code.n %}Each game's {{ 'most likely' if f.by == 'prob' else 'smallest-margin' }} pick, most likely first, added while the whole code still wins at least {{ code.target|round|int }}% of the time.
+{% if code.next %}One more pick would take it to {{ code.next.acc_prob|pct(1) }}.{% endif %}
+{% else %}Even the most likely single pick wins less often than that. Lower the target, or choose a safer zone.{% endif %}
+A higher target means fewer picks and lower odds: you can raise the chance only by accepting a smaller payout.</p>
+{% endif %}
+{% if rows %}
+<form id="slip" method="post" class="picker" onsubmit="return false">
+<div class="scroll"><table>
+<tr><th>{{ m.tick_all("Tick every game's pick") }}<th class="num">#<th>Kick-off<th>Game<th>Pick<th class="num">Odds<th class="num">Chance<th class="num">Back per 1<th class="acc" colspan="3">A code of this pick and all above</tr>
+<tr class="sub"><th colspan="8"><th class="acc num">Odds<th class="acc num">Chance<th class="acc num">Back per 1</tr>
+{% for r in rows %}
+{% if code and code.n and loop.index0 == code.n %}<tr class="cut"><td colspan="11">Stop here for {{ code.target|round|int }}%: below this line the code wins less often than your target.</tr>{% endif %}
+<tr class="{{ 'past' if r.beyond }}">
+<td><input type="checkbox" name="sel" aria-label="Use this pick" {{ 'checked' if code and code.n and not r.beyond }}
+  value='{{ {"eventId": r.event_id, "marketId": r.mid, "specifier": r.spec, "outcomeId": r.oid}|tojson }}'{{ m.pick_data(r.odds, r.prob, r.event_id) }}>
+<td class="muted num">{{ loop.index }}
+<td>{{ r.start_ms|kickoff }}
+<td><a href="{{ url_for('games.game', event_id=r.event_id, fam=r.family, pick=r.pick) }}">{{ r.home }} v {{ r.away }}</a><br>
+  <span class="muted">{{ r.tournament }}, odds {{ r.saved_at|ago }}</span>
+<td>{{ r.pick }} {{ m.zone_badge(r.zone, zl) }}
+<td class="num">{{ r.odds }}<td class="num">{{ r.prob|pct(1) }}<td class="num">{{ m.ret(r.ret) }}
+<td class="acc num">{{ '%.2f'|format(r.acc_odds) }}<td class="acc num">{{ r.acc_prob|one_in if r.acc_prob < 0.5 else r.acc_prob|pct(1) }}<td class="acc num">{{ m.ret(r.acc_ret) }}
+</tr>{% endfor %}
+</table></div>
+{{ m.make_bar(split=True, note=("The " ~ code.n ~ " picks inside your target are ticked. " if code and code.n else "Tick the picks you want, or tick the box at the top for every game. ") ~ "It fetches each game again to check the odds, then makes the codes; you check them and decide on SportyBet.") }}
+</form>
+<p class="muted">The right-hand columns show what happens if you put every pick down to that row into one code: the chance
+falls and the bookmaker's margin compounds with each leg, even when every pick is in the lower-risk zone.</p>
+{% else %}<p class="muted">No game has a pick inside these filters. Try other dates, another zone, or more markets.</p>{% endif %}
+
+<details class="card" style="margin: 20px 0;" {{ 'open' if not rows }}>
+  <summary style="font-size: 18px; font-weight: 700; cursor: pointer;">
+    📁 Imported leagues <span class="muted" style="font-weight: normal; font-size: 14px;">({{ imported|length }} leagues, {{ scanned }} games)</span>
+  </summary>
+  <div class="scroll" style="margin-top: 10px;"><table><tr><th>League<th>Games<th>Full markets<th>Kick-offs<th>Imported</tr>
+  {% for l in imported %}<tr><td><a href="{{ url_for('leagues.league', tid=l.tournament_id) }}">{{ l.category or '' }} {{ l.tournament }}</a>
+  <td>{{ l.n }}<td>{{ l.n_full }}<td class="muted">{{ l.first|kickoff('%d %b') }} to {{ l.last|kickoff('%d %b') }}<td class="muted">{{ l.saved_at|ago }}</tr>{% endfor %}
+  </table></div>
+</details>
+{% else %}
+<p>No leagues imported yet. Tick the leagues you follow below and fetch them.</p>
+{% endif %}
+
+<details id="get-leagues" class="card" style="border-left: 4px solid var(--accent); margin: 24px 0 16px;" {{ 'open' if not imported or not rows }}>
+  <summary style="font-size: 18px; font-weight: 700; cursor: pointer; color: var(--ink);">
+    📥 Get leagues &amp; games <span class="muted" style="font-weight: normal; font-size: 14px;">(browse &amp; import from SportyBet)</span>
+  </summary>
+  <div style="margin-top: 14px;">
+{% if not has_directory %}
+<p>First fetch the league list, which lists every league SportyBet offers.</p>
+{{ m.snippet(directory_snippet, "Fetch the league list", open=True) }}
+{% else %}
+<form method="post" class="fetch" onsubmit="return false">
+  <button type="button" class="secondary" data-cm-queue="{{ url_for('leagues.queue_directory') }}">Refresh the league list from SportyBet</button>
+  <span class="cm-status muted" aria-live="polite">{{ n_leagues }} leagues, fetched {{ dir_saved|ago }}. Refresh it when a new
+  tournament starts (a cup, a new season, international games): new leagues are marked below.</span>
+</form>
+<form method="get" action="{{ url_for('leagues.fetch') }}" class="card picker" id="league-picker" style="margin-top:12px;">
+  <p class="muted">Tick the leagues you follow, then fetch them all at once, with goals, bookings and corners. The number
+  next to each league is how many games SportyBet has on offer.</p>
+  <div class="row">
+    <label>Find a league <input type="search" data-filter="#league-picker label.pick" placeholder="name or country" size="22"></label>
+    <span class="picker-count muted" aria-live="polite"></span>
+  </div>
+  <div class="row" style="margin: 8px 0 12px; gap:8px; display:flex; align-items:center; flex-wrap:wrap;">
+    <button type="button" class="secondary" id="tick-all-leagues" style="font-weight:650;">✓ Tick all leagues ({{ n_leagues }})</button>
+    <button type="button" class="secondary" id="tick-top-leagues">⭐ Tick top leagues only ({{ top|length }})</button>
+    <button type="button" class="secondary" id="untick-all-leagues">✕ Clear all</button>
+    <span class="pill good" id="selected-leagues-badge" style="margin-left:auto; font-weight:700;">0 leagues selected</span>
+  </div>
+  {% if new_leagues %}<h3>New since the last refresh <span class="muted">{{ new_leagues|length }}</span></h3>
+  <div class="cols">{% for c, t in new_leagues %}<label class="pick" data-text="{{ c }} {{ t.name }}"><input type="checkbox" name="tid" value="{{ t.id }}"><span>{{ t.name }}<small>{{ c }}</small></span><em>{{ t.eventSize }}</em></label>{% endfor %}</div>{% endif %}
+  {% if top %}<h3>Top leagues</h3>
+  <div class="cols" id="top-leagues-col">{% for t in top %}<label class="pick" data-text="{{ t.categoryName }} {{ t.name }}"><input type="checkbox" name="tid" value="{{ t.id }}"><span>{{ t.name }}<small>{{ t.categoryName|replace('International Clubs', 'Clubs') }}</small></span><em>{{ t.eventSize }}</em></label>{% endfor %}</div>{% endif %}
+  <details data-open-on-filter open><summary>All countries and competitions ({{ cats|length }} countries, {{ n_leagues }} tournaments)</summary>
+  {% set new_ids = new_leagues|map(attribute=1)|map(attribute='id')|list %}
+  {% for c in cats %}<div class="country" data-group>
+  <h3>{{ c.name }} <span class="muted">{{ c.eventSize }}</span>
+    <button type="button" class="link small" data-tick-group>tick all shown</button></h3>
+  <div class="cols">{% for t in c.tournaments %}<label class="pick" data-text="{{ c.name }} {{ t.name }}"><input type="checkbox" name="tid" value="{{ t.id }}"><span>{{ t.name }}{% if t.id in new_ids %} <b class="good small">new</b>{% endif %}</span><em>{{ t.eventSize }}</em></label>{% endfor %}</div></div>{% endfor %}
+  </details>
+  <div class="fetch" style="margin-top:14px;">
+    <button type="button" data-cm-queue="{{ url_for('leagues.queue') }}">Fetch the ticked leagues with the CodeMatch button</button>
+    <button class="secondary" style="margin-left:8px;">Or get console code for them instead</button>
+    <div class="cm-status muted" aria-live="polite" style="margin-top:6px;">Opens SportyBet in a new tab; then click <b>CodeMatch</b> in your bookmarks bar there.
+    Each league takes about 1.5 seconds.</div>
+  </div>
+</form>
+<script>
+(() => {
+  const form = document.getElementById("league-picker");
+  if (!form) return;
+  const boxes = () => [...form.querySelectorAll("input[name=tid]")];
+  const badge = document.getElementById("selected-leagues-badge");
+  const updateCount = () => {
+    const n = new Set(boxes().filter(b => b.checked).map(b => b.value)).size;
+    if (badge) badge.textContent = n + " league" + (n === 1 ? "" : "s") + " selected";
+  };
+  document.getElementById("tick-all-leagues")?.addEventListener("click", () => {
+    boxes().forEach(b => {
+      const isHidden = b.closest("label.pick")?.hidden || b.closest("[data-group]")?.hidden;
+      if (!isHidden) b.checked = true;
+    });
+    updateCount();
+  });
+  document.getElementById("tick-top-leagues")?.addEventListener("click", () => {
+    boxes().forEach(b => b.checked = false);
+    document.querySelectorAll("#top-leagues-col input[name=tid]").forEach(b => b.checked = true);
+    updateCount();
+  });
+  document.getElementById("untick-all-leagues")?.addEventListener("click", () => {
+    boxes().forEach(b => b.checked = false);
+    updateCount();
+  });
+  form.addEventListener("change", e => {
+    if (e.target.name === "tid") updateCount();
+  });
+  updateCount();
+})();
+</script>
+{% endif %}
+  </div>
+</details>
+<script>
+const checkHash = () => {
+  if (location.hash === "#get-leagues") {
+    const el = document.getElementById("get-leagues");
+    if (el) {
+      el.open = true;
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  }
+};
+window.addEventListener("hashchange", checkHash);
+checkHash();
+</script>
+{% endblock %}

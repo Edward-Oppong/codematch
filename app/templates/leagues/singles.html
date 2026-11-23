@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Value Singles Scanner · CodeMatch{% endblock %}
+{% block body %}
+{{ m.flow_tracker(2) }}
+
+<h1>Value Singles Scanner</h1>
+<p class="lede">The quantitative alternative to high-margin accumulators. Find single-match selections where SportyBet keeps the smallest cut of your stake.</p>
+
+{{ m.hunt_tabs('singles', start, end) }}
+
+{% set zl = {} %}{% for k, label, lo, hi in zones %}{% set _ = zl.update({k: label}) %}{% endfor %}
+
+{% if imported %}
+<form method="get" class="card filters" id="singles-filters">
+  <div class="row chips" role="group" aria-label="Markets" style="margin-bottom:8px">
+    <span>Focus Market:</span>
+    {% for val, label in [
+        ('', 'All Markets'),
+        ('handicap', '🛡️ Handicap'),
+        ('corners', '🚩 Corners'),
+        ('bookings', '🟨 Bookings'),
+        ('halves', '⏱️ Half-Time'),
+        ('btts', '🔄 GG/NG'),
+        ('dc', '⚽ 1X2 & Double Chance'),
+        ('goals', '📊 Totals'),
+        ('stats', '👟 Stats')
+    ] %}
+    <label class="chip">
+      <input type="radio" name="fam" value="{{ val }}" {{ 'checked' if fam == val }} onchange="this.form.requestSubmit()">
+      {{ label }}
+    </label>
+    {% endfor %}
+  </div>
+  <div class="row" style="align-items:center; justify-content:space-between;">
+    <span><b>Filter by League:</b> <small class="muted">({{ imported|length }} imported)</small></span>
+    <span class="small" style="display:flex; gap:8px;">
+      {% if not all_chosen %}<a href="{{ show_all_url }}">Show all</a>{% else %}<span class="muted">all shown</span>{% endif %} · 
+      <a href="{{ url_for('leagues.index') }}#get-leagues" style="color:var(--accent); font-weight:600;">+ Get More Leagues</a>
+    </span>
+  </div>
+  <div class="league-filter-box" role="group" aria-label="Leagues">
+    {% for l in imported %}<label class="chip"><input type="checkbox" name="tid" value="{{ l.tournament_id }}"
+      {{ 'checked' if l.tournament_id in chosen and not all_chosen }} onchange="this.form.requestSubmit()">{{ l.tournament }} <small>{{ l.n }}</small></label>{% endfor %}
+  </div>
+  <div class="row">
+    <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+    <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+    <label><input type="checkbox" name="upcoming" value="1" {{ 'checked' if upcoming }}> Only games not yet started</label>
+    <label><input type="checkbox" name="one" value="1" {{ 'checked' if one }}> At most 1 pick per game</label>
+  </div>
+  <div class="row">
+    <label>Rank by <select name="by" onchange="this.form.requestSubmit()">
+      <option value="prob" {{ 'selected' if by == 'prob' }}>🎯 Highest Chance (most likely)</option>
+      <option value="return" {{ 'selected' if by == 'return' }}>💰 Smallest House Margin (highest return)</option>
+      <option value="odds" {{ 'selected' if by == 'odds' }}>📈 Highest Odds</option>
+      <option value="kickoff" {{ 'selected' if by == 'kickoff' }}>⏱️ Soonest Kick-off</option>
+    </select></label>
+    <label>Picks Filter <select name="dir" onchange="this.form.requestSubmit()">
+      <option value="all" {{ 'selected' if dir == 'all' }}>All Picks</option>
+      <option value="no_extreme_under" {{ 'selected' if dir == 'no_extreme_under' }}>Exclude Extreme Unders (No Under 4.5 / 5.0)</option>
+      <option value="over" {{ 'selected' if dir == 'over' }}>Over Lines Only</option>
+      <option value="under" {{ 'selected' if dir == 'under' }}>Under Lines Only</option>
+    </select></label>
+    <label>Min Chance <input name="minp" value="{{ '%g'|format(minp) }}" size="3" inputmode="decimal">%</label>
+    <label>Odds from <input name="mino" value="{{ '%.2f'|format(mino) }}" size="4" inputmode="decimal"> to <input name="maxo" value="{{ '%.2f'|format(maxo) }}" size="4" inputmode="decimal"></label>
+    <label>Min Return <input name="minret" value="{{ '%g'|format(min_ret) }}" size="3" inputmode="decimal">%</label>
+    <button>Apply Filters</button>
+  </div>
+</form>
+{% else %}
+<div class="card" style="border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 14px 18px; margin: 18px 0;">
+  <h3 style="margin:0 0 6px">No leagues imported yet</h3>
+  <p style="margin:0 0 10px">To scan value singles and games, first pick the leagues you follow from SportyBet.</p>
+  <a href="{{ url_for('leagues.index') }}#get-leagues" style="display:inline-block; background:var(--accent); color:var(--accent-ink); padding:7px 16px; border-radius:var(--r-sm); text-decoration:none; font-weight:600;">Go to Get Leagues &rarr;</a>
+</div>
+{% endif %}
+
+<details class="explain"><summary>Why bet value singles instead of accumulators?</summary>
+<p class="muted">Every leg added to an accumulator multiplies the bookmaker's house edge against you. Advantage players and syndicates bet <b>singles</b> on markets with minimal margin. A pick that gives back 0.96 per 1 has only a 4% house edge; combine 10 of them into a parlay and your expected return drops to 0.66 (a 34% loss). High expected return single bets minimize house drag.</p>
+</details>
+
+{% if not rows %}
+<p class="msg">No single picks match these criteria in the chosen games. Try lowering the minimum chance or minimum return.</p>
+{% else %}
+<p class="muted">Showing {{ rows|length }} lowest-margin single selections across {{ n_games }} games, ranked by expected return.</p>
+
+<form method="post" class="picker" onsubmit="return false">
+<div class="scroll">
+  <table class="stack">
+    <tr>
+      <th>{{ m.tick_all() }}</th>
+      <th>Game & Kick-off</th>
+      <th>Market & Selection</th>
+      <th class="num">Odds</th>
+      <th class="num">Chance</th>
+      <th class="num">House Margin</th>
+      <th class="num">Back per 1</th>
+      <th class="num">Kelly Stake</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td><input type="checkbox" name="sel" aria-label="Select pick" value='{{ r.sel|tojson }}' {{ m.pick_data(r.odds, r.prob, r.event_id) }}></td>
+      <td>
+        <a href="{{ url_for('games.game', event_id=r.event_id) }}"><b>{{ r.home }} v {{ r.away }}</b></a><br>
+        <span class="muted">{{ r.tournament }}, {{ r.start_ms|kickoff }}</span>
+      </td>
+      <td data-label="Pick">
+        <b>{{ r.label }}</b> {{ m.zone_badge(r.zone, zl) }}
+      </td>
+      <td data-label="Odds" class="num"><b>{{ '%.2f'|format(r.odds) }}</b></td>
+      <td data-label="Chance" class="num">{{ r.prob|pct(1) }}</td>
+      <td data-label="House Margin" class="num"><span class="{{ 'good' if r.margin < 5.0 else 'warn' }}">{{ '%.1f%%'|format(r.margin) }}</span></td>
+      <td data-label="Back per 1" class="num"><b>{{ m.ret(r.ret) }}</b></td>
+      <td data-label="Kelly Stake" class="num">
+        {% if r.kelly_q > 0 %}
+          <span class="good" title="Quarter-Kelly recommended stake fraction">{{ '%.1f%%'|format(r.kelly_q) }}</span>
+          {% if bankroll and r.kelly_cash %}
+          <br><small class="muted">{{ '%.2f'|format(r.kelly_cash) }}</small>
+          {% endif %}
+        {% else %}
+          <span class="muted" title="Negative edge: 1% flat max">1.0%</span>
+          {% if bankroll %}
+          <br><small class="muted">{{ '%.2f'|format(bankroll * 0.01) }}</small>
+          {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{{ m.make_bar("Make a SportyBet booking code from ticked single(s)", split=True, note="Creates individual booking slips on SportyBet; staking stays with you on SportyBet.") }}
+</form>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ info.home }} v {{ info.away }} · CodeMatch{% endblock %}
+{% block body %}
+<a class="back" href="{{ url_for('games.index') }}">&larr; Games</a>
+<h1>{{ info.home }} v {{ info.away }}</h1>
+<p class="lede">{% if info.tournament_id %}<a href="{{ url_for('leagues.league', tid=info.tournament_id) }}">{{ info.category or '' }} {{ info.tournament }}</a>,
+{% endif %}{{ info.start_ms|kickoff }}. <a href="{{ sb_url }}" target="_blank" rel="noopener">Open on SportyBet</a></p>
+{% if result %}
+<div class="card" style="border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 18px; margin: 12px 0;">
+  <b style="font-size:16px;">🏁 Final Score: {{ result[0] + result[2] }} - {{ result[1] + result[3] }}</b>
+  <span class="muted" style="margin-left:12px;">(Half-Time: {{ result[0] }} - {{ result[1] }})</span>
+  <p class="muted" style="margin:4px 0 0;">This game has finished. Check the market list below to see which pre-match selections won or lost against the system's probabilities.</p>
+</div>
+{% elif started %}
+<p class="msg">This game has kicked off. These are pre-match odds and are no longer on offer.</p>
+{% endif %}
+<p class="muted">{{ n_markets }} markets, odds imported {{ saved|ago }}. Odds move, so refresh close to kick-off.</p>
+{% if n_markets < 100 %}{{ m.snippet(snippet, "This game only has its league markets. Fetch every market", open=True) }}
+{% else %}{{ m.snippet(snippet, "Refresh this game's odds") }}{% endif %}
+
+<nav class="tabs" aria-label="Markets">
+  {% for f in fams if present[f] or f == 'goals' %}
+    {% if f == fam %}<b>{{ fam_label(f) }}</b>{% else %}<a href="?fam={{ f|urlencode }}">{{ fam_label(f) }}</a>{% endif %}
+  {% endfor %}
+  {% if others %}{% if fam == 'other' %}<b>Other markets <small>{{ others|length }}</small></b>{% else %}<a href="?fam=other">Other markets <small>{{ others|length }}</small></a>{% endif %}{% endif %}
+</nav>
+
+{% if fam == 'other' %}
+<p class="muted">Markets the app can't compare with other picks: players, timing and order, booking points. Their odds and
+SportyBet's chances are shown as they are; "back per 1" is odds &times; chance.</p>
+{% set ov = other_view %}
+<form method="get" class="card filters"><div class="row">
+  <input type="hidden" name="fam" value="other">
+  <label>Group <select name="group" onchange="this.form.submit()">
+    {% for g, n in ov.groups %}<option value="{{ g }}" {{ 'selected' if g == ov.group }}>{{ g }} ({{ n }})</option>{% endfor %}</select></label>
+  <label>Find <input name="q" value="{{ q }}" placeholder="a player or market"></label>
+  <button>Show</button></div>
+</form>
+<p class="muted">{{ ov.n }} market{{ 's' if ov.n != 1 }}{% if ov.n > ov.limit %}, first {{ ov.limit }} shown: search to narrow it down{% endif %}.</p>
+{% for o in ov.markets %}
+<details class="fixture"><summary><span><b>{{ o.market }}</b></span><span class="n">{{ o.outcomes|length }}</span>
+  <span class="muted">most likely: {{ (o.outcomes|sort(attribute='prob', reverse=True)|first).desc }}</span></summary>
+  <div class="body"><div class="scroll"><table><tr><th>Outcome<th class="num">Odds<th class="num">Chance<th class="num">Back per 1</tr>
+  {% for r in o.outcomes|sort(attribute='prob', reverse=True) %}<tr><td>{{ r.desc }}<td class="num">{{ r.odds }}<td class="num">{{ r.prob|pct(1) }}<td class="num">{{ m.ret(r.ret) }}</tr>{% endfor %}
+  </table></div></div></details>
+{% endfor %}
+{% else %}
+
+<form method="get" class="card filters"><div class="row">
+  <input type="hidden" name="fam" value="{{ fam }}">
+  <label>Zone <select name="zone"><option value="">Any</option>
+    {% for k, label, lo, hi in zones %}<option value="{{ k }}" {{ 'selected' if zone == k }}>{{ label }} ({{ zone_counts[k] }})</option>{% endfor %}</select></label>
+  <label>Chance at least <input name="minp" value="{{ minp }}" size="3" inputmode="decimal">%</label>
+  <label>Odds at most <input name="maxo" value="{{ maxo }}" size="4" inputmode="decimal"></label>
+  <button>Filter</button></div>
+</form>
+
+{% if pick %}
+<section class="card" aria-label="Selected pick">
+<h2 style="margin-top:4px">{{ pick }}</h2>
+<div class="figures">
+  {{ m.figure("Odds", base.odds) }}
+  {{ m.figure("Chance", base.prob|pct(1)) }}
+  {% if base.push_prob %}{{ m.figure("Refund", base.push_prob|pct) }}{% endif %}
+  {{ m.figure("Back per 1 staked", '%.3f'|format(base.ret)) }}
+  <div class="figure"><span>Zone</span><b>{{ m.zone_badge(zone_of(base.odds), zone_label) }}</b></div>
+</div>
+{% if spark %}
+<p class="muted">Odds since first import: {{ history[0].odds }} to {{ history[-1].odds }} over {{ history|length }} changes.</p>
+<svg class="spark" width="{{ spark.w }}" height="{{ spark.h }}" viewBox="0 0 {{ spark.w }} {{ spark.h }}" role="img"
+     aria-label="Odds moved from {{ history[0].odds }} to {{ history[-1].odds }}"><path d="{{ spark.d }}"/>
+  <circle cx="{{ '%.1f'|format(spark.last[0]) }}" cy="{{ '%.1f'|format(spark.last[1]) }}" r="3.5"/></svg>
+{% elif history %}<p class="muted">Odds unchanged since the first import ({{ history[0].odds }}).</p>{% endif %}
+
+<h3>Safer: does at least as well as your pick in every result</h3>
+<div class="scroll"><table class="stack"><tr><th>Pick<th class="num">Odds<th class="num">Chance<th class="num">Odds given up</tr>
+{% for k, v in safer %}<tr><td><a href="?fam={{ fam|urlencode }}&pick={{ k|urlencode }}">{{ k }}</a><td data-label="Odds" class="num">{{ v.odds }}
+<td data-label="Chance" class="num">{{ v.prob|pct(1) }}<td data-label="Odds given up" class="num">&minus;{{ '%.2f'|format(base.odds - v.odds) }}</tr>
+{% else %}<tr><td colspan="4" class="muted">None found.</tr>{% endfor %}</table></div>
+<h3>Riskier: wins on only part of what your pick wins</h3>
+<div class="scroll"><table class="stack"><tr><th>Pick<th class="num">Odds<th class="num">Chance<th class="num">Extra odds</tr>
+{% for k, v in riskier %}<tr><td><a href="?fam={{ fam|urlencode }}&pick={{ k|urlencode }}">{{ k }}</a><td data-label="Odds" class="num">{{ v.odds }}
+<td data-label="Chance" class="num">{{ v.prob|pct(1) }}<td data-label="Extra odds" class="num">+{{ '%.2f'|format(v.odds - base.odds) }}</tr>
+{% else %}<tr><td colspan="4" class="muted">None found.</tr>{% endfor %}</table></div>
+</section>
+{% endif %}
+
+{% if movers %}
+<h2>Biggest odds moves since first import</h2>
+<div class="scroll"><table class="stack"><tr><th>Pick<th class="num">Was<th class="num">Now<th class="num">Change</tr>
+{% for k, was, now in movers %}<tr><td><a href="?fam={{ fam|urlencode }}&pick={{ k|urlencode }}">{{ k }}</a><td data-label="Was" class="num">{{ was }}
+<td data-label="Now" class="num">{{ now }}<td data-label="Change" class="num {{ 'good' if now > was else 'bad' }}">{{ '%+.0f%%'|format((now / was - 1) * 100) }}</tr>{% endfor %}
+</table></div>
+<p class="muted">Shortening odds (red) usually mean money or news is coming in on that pick.</p>
+{% endif %}
+
+<h2>All {{ fam }} picks <span class="muted">({{ n_rows }}{{ ', first 300 shown' if n_rows > 300 }})</span></h2>
+<p class="muted">Most likely first. Click a pick for its safer and riskier alternatives and its odds history. "Back per 1" is
+what each 1 staked pays back on average, counting refunds; below 1 is SportyBet's margin.</p>
+<div class="scroll"><table class="stack"><tr><th>Pick<th>Zone<th class="num">Odds<th class="num">Chance<th class="num">Back per 1<th class="num">Since first import{% if result %}<th>Outcome{% endif %}</tr>
+{% for k, v in rows %}<tr class="{{ 'sel' if k == pick }}">
+<td><a href="?fam={{ fam|urlencode }}&pick={{ k|urlencode }}&zone={{ zone }}&minp={{ minp }}&maxo={{ maxo }}">{{ k }}</a>
+<td data-label="Zone">{{ m.zone_badge(zone_of(v.odds), zone_label) }}
+<td data-label="Odds" class="num">{{ v.odds }}
+<td data-label="Chance" class="num">{{ v.prob|pct(1) }}{{ '*' if v.cond }}{% if v.push %}<br><span class="muted">refund {{ ('if ' ~ v.refund_on.split(': ', 1)[1]|lower) if v.refund_on else 'possible' }}{% if v.push_prob %} ({{ v.push_prob|pct }}){% endif %}</span>{% endif %}
+<td data-label="Back per 1" class="num">{{ m.ret(v.ret) }}
+<td data-label="Since first import" class="num muted">{% set f0 = first.get(k) %}{% if f0 and f0 != v.odds %}{{ f0 }} to {{ v.odds }}{% else %}-{% endif %}</td>
+{% if result %}
+<td data-label="Outcome">
+  {% set leg = {'market_id': v.mid, 'specifier': v.spec, 'pick': v.odesc or k.split(': ', 1)[-1], 'match': info.home ~ ' v ' ~ info.away} %}
+  {% set st = leg_status(leg, result) if leg_status else 'pending' %}
+  {% if st == 'won' %}<span class="pill good" style="font-weight:700;">✓ Won</span>
+  {% elif st == 'lost' %}<span class="pill bad">✗ Lost</span>
+  {% elif st == 'void' %}<span class="pill">Void</span>
+  {% else %}<span class="muted">-</span>{% endif %}
+</td>
+{% endif %}
+</tr>
+{% else %}<tr><td colspan="6" class="muted">No picks match these filters.</tr>{% endfor %}</table></div>
+{% if rows|selectattr('1.cond')|list %}<p class="muted">* SportyBet's figure for a refund pick whose refund result isn't priced
+on its own: the chance of winning if there's no refund.</p>{% endif %}
+{% endif %}
+
+<form method="post" action="{{ url_for('games.delete') }}" onsubmit="return confirm('Delete {{ info.home }} v {{ info.away }}? Codes that include it keep their legs; you can fetch the game again any time.')">
+  <input type="hidden" name="event_id" value="{{ info.event_id }}">
+  {% if info.tournament_id %}<input type="hidden" name="back" value="{{ url_for('leagues.league', tid=info.tournament_id) }}">{% endif %}
+  <button class="link">Delete this game</button></form>
+{% endblock %}

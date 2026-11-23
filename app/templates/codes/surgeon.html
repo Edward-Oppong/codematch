@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Batch Code Surgeon · CodeMatch{% endblock %}
+{% block body %}
+{{ m.flow_tracker(3) }}
+
+<h1>⚡ Batch Code Surgeon</h1>
+<p class="lede">Global audit and automated parlay cure: scans all booking codes, identifies high-margin toxic legs, and swaps them for safer, high-probability alternatives on the same matches in 1 click.</p>
+
+{{ m.slip_tabs('surgeon') }}
+
+<div class="figures target">
+  {{ m.figure("Codes Audited", total_scanned) }}
+  {{ m.figure("Toxic Legs Cured", total_toxic_cured, cls='good') }}
+  {{ m.figure("Safety Floor", "Min odds " ~ '%.2f'|format(min_odds)) }}
+</div>
+
+{% if not surgeries %}
+<p class="msg">No open booking codes found to audit. Fetch codes from <a href="{{ url_for('codes.index') }}#tab-hub">Code Hub</a> or paste your own first.</p>
+{% else %}
+
+{% for s in surgeries %}
+<div class="card" style="margin: 20px 0; border-left: 4px solid {{ 'var(--low)' if s.n_swapped > 0 else 'var(--rule)' }};">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+    <div>
+      <h3 style="margin:0;">
+        <a href="{{ url_for('codes.review_code', code=s.code) }}">Code <b>{{ s.code }}</b></a>
+        {% if s.source == 'hub' %}<span class="muted small">· from SportyBet Code Hub</span>{% endif %}
+      </h3>
+      <div style="margin-top:4px; font-size:13px;">
+        Toxicity: <span class="pill {{ 'good' if s.orig.toxicity_grade in ('A', 'B') else ('warn' if s.orig.toxicity_grade == 'C' else 'bad') }}">Grade {{ s.orig.toxicity_grade }}</span>
+        {% if s.n_swapped > 0 %}
+          &rarr; Cured: <span class="pill good">Grade {{ s.improved.toxicity_grade }}</span>
+        {% endif %}
+        · House Margin: <b>{{ '%.1f%%'|format(s.orig.toxicity_margin_pct) }}</b>
+        {% if s.n_swapped > 0 %}
+          &rarr; <b>{{ '%.1f%%'|format(s.improved.toxicity_margin_pct) }}</b>
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      {% if s.n_swapped > 0 %}
+        <span class="pill good" style="font-weight:700; font-size:13px;">⚡ {{ s.n_swapped }} Toxic Leg{{ 's' if s.n_swapped != 1 else '' }} Cured</span>
+      {% else %}
+        <span class="pill" style="font-size:13px; color:var(--ink-2);">✓ No safer alternatives needed</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="figures" style="margin: 12px 0;">
+    {{ m.figure("Original Odds", '%.2f'|format(s.orig.total_odds)) }}
+    {{ m.figure("Original Win Chance", s.orig.joint_prob|one_in if s.orig.joint_prob is not none else '-') }}
+    {% if s.n_swapped > 0 %}
+    {{ m.figure("Cured Odds", '%.2f'|format(s.improved.total_odds), cls='warn' if s.improved.total_odds < s.orig.total_odds else '') }}
+    {{ m.figure("Cured Win Chance", s.improved.joint_prob|one_in if s.improved.joint_prob is not none else '-', cls='good') }}
+    {% if s.chance_boost %}
+    {{ m.figure("Probability Boost", '+' ~ s.chance_boost ~ '%', cls='good') }}
+    {% endif %}
+    {% endif %}
+  </div>
+
+  {% if s.changes %}
+  <div style="background:var(--paper); padding:10px 14px; border-radius:var(--r-sm); margin:12px 0;">
+    <b style="font-size:13px; color:var(--accent);">Surgical Modifications Made:</b>
+    <ul style="margin:6px 0 0 16px; padding:0; font-size:13px; line-height:1.6;">
+      {% for c in s.changes %}
+      <li>
+        <b>{{ c.match }}</b>:
+        <span style="text-decoration:line-through; color:var(--high);">{{ c.was }}</span> (odds {{ '%.2f'|format(c.was_odds) }}{{ ', chance ' ~ (c.was_prob|pct(1)) if c.was_prob else '' }})
+        &rarr;
+        <b class="good">{{ c.now }}</b> (odds {{ '%.2f'|format(c.now_odds) }}, chance {{ c.now_prob|pct(1) }})
+        <span class="pill good small" style="margin-left:6px;">+{{ c.boost }}% win chance</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if s.selections %}
+  <form method="post" class="picker" onsubmit="return false">
+    <div style="display:none;">
+      {% for l in s.legs %}
+      {% if l.market_id and l.outcome_id %}
+      <input type="checkbox" name="sel" checked value='{{ {"eventId": l.event_id, "marketId": l.market_id, "specifier": l.specifier or "", "outcomeId": l.outcome_id}|tojson }}' {{ m.pick_data(l.odds, l.prob, l.event_id) }}>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {{ m.make_bar("Make SportyBet Booking Code for Cured " ~ s.code ~ " (" ~ s.legs|length ~ " legs)", split=False) }}
+  </form>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

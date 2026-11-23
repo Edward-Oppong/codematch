@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Import · CodeMatch{% endblock %}
+{% block body %}
+<h1>Import</h1>
+<p class="lede">Get data from sportybet.com into CodeMatch. SportyBet only answers real browsers, so the fetching
+happens in your own browser, with your own SportyBet session; the app never contacts SportyBet itself.</p>
+{{ m.messages(msgs) }}
+
+<h2 id="button">The CodeMatch button</h2>
+<p>Drag this to your browser's bookmarks bar, once:</p>
+<p><a class="bookmark" href="{{ bookmarklet }}" onclick="event.preventDefault(); alert('Drag this to your bookmarks bar instead of clicking it here. Then use it on sportybet.com.')">CodeMatch</a>
+{% if button_outdated %}<span class="warn"> <b>Update needed:</b> the bookmark in your browser is an older version. Delete it and drag this one to your bookmarks bar.</span>
+{% elif button_used %}<span class="good"> Working: it has fetched data before.</span>{% endif %}</p>
+<ol class="steps">
+  <li>No bookmarks bar? Press <b>Ctrl+Shift+B</b> (<b>Cmd+Shift+B</b> on a Mac) to show it, then drag the button onto it.</li>
+  <li>Anywhere in CodeMatch, press <b>Fetch with the CodeMatch button</b>. SportyBet opens in a new tab.</li>
+  <li>In that tab, click <b>CodeMatch</b> in the bookmarks bar. The data arrives here by itself; nothing to download or upload.</li>
+</ol>
+<p class="muted">On a SportyBet match page with nothing queued, the button fetches that game. The first time, your browser
+may ask whether sportybet.com can access devices on your local network: choose <b>Allow</b>, since that's how it reaches
+this app on your computer. The button carries a secret key for this app only, so don't share it; if it stops working
+after moving the app to another port, drag it again from here.</p>
+
+<details class="card" id="button-trouble">
+<summary><b>Button not working? Troubleshoot here</b></summary>
+<p class="muted">Work through these steps in order:</p>
+<ol class="steps">
+  <li><b>Re-drag the bookmark.</b> Delete the old CodeMatch bookmark from your bar, then drag the green button above onto it again. This fixes mismatched keys or port changes.</li>
+  <li><b>Open sportybet.com in a tab</b> and click CodeMatch in the bar. If a black box appears bottom-right saying "asking the app…" then the connection is working.</li>
+  <li><b>Allow local network access.</b> Chrome may show a prompt: <em>"sportybet.com wants to access devices on your local network."</em> Click <b>Allow</b>. Without it, the button can't reach this app.</li>
+  <li>If Chrome still blocks it: go to <code>chrome://flags</code>, search for <b>Private Network Access</b>, set it to <b>Disabled</b>, and relaunch Chrome. (This flag re-enables the old behaviour.)</li>
+  <li><b>Clear stale fetch jobs</b> (if the status bar shows "fetching" but nothing arrives):
+    <form method="post" action="{{ url_for('bridge.clear_job') }}" style="display:inline" onsubmit="return true">
+      <button class="secondary" style="margin-top:6px">Clear stale job</button>
+    </form>
+  </li>
+  <li><b>Check this app is running</b> at <a href="http://127.0.0.1:5000/" target="_blank">http://127.0.0.1:5000/</a>. The bookmark is hardcoded to that address; if you use a different port, drag a fresh bookmark from here.</li>
+</ol>
+</details>
+
+<form method="post" action="{{ url_for('imports.new_key') }}" onsubmit="return confirm('Make a new key? Your current CodeMatch bookmark will stop working and you will need to drag the new one.')">
+  <button class="link">Shared the bookmark by mistake? Make a new key</button></form>
+
+{{ m.snippet(directory_snippet, "Fetch the league list (needed once, to browse every league)") }}
+
+<h2>Upload a file instead</h2>
+<p class="muted">For files downloaded with the console code, or a HAR export from the browser's Network tab. You can choose
+several at once. Only responses are read: request headers and cookies are skipped and never stored.</p>
+<form method="post" enctype="multipart/form-data" class="card">
+  <div class="row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <input type="file" name="files" multiple aria-label="Files to import"><button>Import the files</button></div>
+  <details><summary>Or paste a response</summary>
+    <textarea name="text" rows="6" placeholder="Paste a response copied from the browser's Network tab"></textarea>
+    <button>Import the pasted text</button>
+  </details>
+</form>
+
+<h2>Clear data</h2>
+<p class="muted">Saved now: {{ counts.codes }} codes, {{ counts.games }} games ({{ counts.old_games }} kicked off more than a
+day ago). Importing something again replaces the old copy, so clearing is only needed to tidy up or start fresh. Your
+bet record on the Results page is always kept. To delete particular codes, tick them on
+<a href="{{ url_for('codes.index') }}">Codes</a>.</p>
+<form method="post" action="{{ url_for('imports.clear') }}" class="actions">
+  <button class="secondary" name="what" value="old_games" onclick="return confirm('Delete games that kicked off more than a day ago?')">Delete old games ({{ counts.old_games }})</button>
+  <button class="secondary" name="what" value="games" onclick="return confirm('Delete all {{ counts.games }} games? Codes are kept.')">Delete all games</button>
+  <button class="danger" name="what" value="everything" onclick="return confirm('Delete all codes and games? Your bet record is kept. This cannot be undone.')">Delete everything</button>
+</form>
+{% endblock %}

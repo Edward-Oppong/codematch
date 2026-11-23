@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Odds Steam & Line Movement · CodeMatch{% endblock %}
+{% block body %}
+<h1>Odds Steam & Line Movement</h1>
+<p class="lede">Track market pressure and sharp money. When odds drop sharply on an outcome, high-volume action is backing that side.</p>
+
+<nav class="tabs" aria-label="Views">
+  <a href="{{ url_for('leagues.singles') }}">🎯 Value Singles</a>
+  <b>🔥 Odds Steam &amp; Line Movement</b>
+  <a href="{{ url_for('games.index', start=start.isoformat(), end=end.isoformat()) }}">All Games</a>
+</nav>
+
+{% set zl = {} %}{% for k, label, lo, hi in zones %}{% set _ = zl.update({k: label}) %}{% endfor %}
+
+<form method="get" class="card filters">
+  {% if leagues %}<div class="row chips" role="group" aria-label="Leagues">
+    <span>Leagues:</span>
+    {% for l in leagues %}<label class="chip"><input type="checkbox" name="tid" value="{{ l.tournament_id }}"
+      {{ 'checked' if l.tournament_id in chosen }} onchange="this.form.requestSubmit()">{{ l.tournament }} <small>{{ l.n }}</small></label>{% endfor %}
+    {% if chosen %}<a href="{{ show_all_url }}">Show all</a>{% else %}<span class="muted">all shown</span>{% endif %}
+  </div>{% endif %}
+  <div class="row">
+    <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+    <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+    <label><input type="checkbox" name="upcoming" value="1" {{ 'checked' if upcoming }}> Only games not yet started</label>
+  </div>
+  <div class="row">
+    <label>Movement <select name="dir">
+      <option value="steam" {{ 'selected' if direction == 'steam' }}>Steam (Odds Shortened / Dropping)</option>
+      <option value="drift" {{ 'selected' if direction == 'drift' }}>Drift (Odds Lengthened / Rising)</option>
+      <option value="all" {{ 'selected' if direction == 'all' }}>All Movers</option>
+    </select></label>
+    <label>Min Change <input name="minpct" value="{{ '%g'|format(min_pct) }}" size="3" inputmode="decimal">%</label>
+    <button>Track Movement</button>
+  </div>
+</form>
+
+<details class="explain"><summary>How sharp steam tracking creates an edge</summary>
+<p class="muted">When sharp bettors and syndicates identify a mispriced game, heavy volume forces bookmakers to shorten (slash) their odds. Re-fetching leagues and games tracks these price changes over time in your database. Catching steam early lets you back selections before the bookmaker cuts the price further.</p>
+</details>
+
+{% if not movers %}
+<p class="msg">No odds movements of {{ min_pct }}% or more found across these {{ n_games }} games. Odds moves appear as games are refreshed over time.</p>
+{% else %}
+<p class="muted">Showing {{ movers|length }} selections with significant price moves across {{ n_games }} games.</p>
+
+<form method="post" class="picker" onsubmit="return false">
+<div class="scroll">
+  <table class="stack">
+    <tr>
+      <th>{{ m.tick_all() }}</th>
+      <th>Game & Kick-off</th>
+      <th>Market & Selection</th>
+      <th class="num">Opened</th>
+      <th class="num">Current</th>
+      <th class="num">Move %</th>
+      <th class="num">Chance Shift</th>
+      <th class="num">Back per 1</th>
+    </tr>
+    {% for r in movers %}
+    {% set is_steam = r.move_pct < 0 %}
+    <tr>
+      <td><input type="checkbox" name="sel" aria-label="Select pick" value='{{ r.sel|tojson }}' {{ m.pick_data(r.odds, r.prob, r.event_id) }}></td>
+      <td>
+        <a href="{{ url_for('games.game', event_id=r.event_id) }}"><b>{{ r.home }} v {{ r.away }}</b></a><br>
+        <span class="muted">{{ r.tournament }}, {{ r.start_ms|kickoff }}</span>
+      </td>
+      <td data-label="Pick">
+        <b>{{ r.label }}</b> {{ m.zone_badge(r.zone, zl) }}
+      </td>
+      <td data-label="Opened" class="num muted">{{ '%.2f'|format(r.first_odds) }}</td>
+      <td data-label="Current" class="num"><b>{{ '%.2f'|format(r.odds) }}</b></td>
+      <td data-label="Move" class="num">
+        <span class="{{ 'good' if is_steam else 'warn' }}">
+          <b>{{ '%+.1f%%'|format(r.move_pct) }}</b>
+          <small>({{ 'Steam' if is_steam else 'Drift' }})</small>
+        </span>
+      </td>
+      <td data-label="Chance" class="num">
+        {{ r.prob|pct(1) }}
+        {% if r.prob_diff is not none %}
+          <small class="{{ 'good' if r.prob_diff > 0 else 'bad' }}">({{ '%+.1f%%'|format(r.prob_diff) }})</small>
+        {% endif %}
+      </td>
+      <td data-label="Back per 1" class="num">{{ m.ret(r.ret) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{{ m.make_bar("Make a SportyBet booking code from ticked mover(s)", split=True, note="Creates booking slips on SportyBet; verify prices before staking.") }}
+</form>
+{% endif %}
+
+{% endblock %}

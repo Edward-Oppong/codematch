@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Codes · CodeMatch{% endblock %}
+{% block body %}
+{{ m.flow_tracker(3) }}
+
+<h1>Booking Codes &amp; Slip Lab</h1>
+<p class="lede">See what a code really is before you stake it: how likely it is to win, and how much of your stake
+SportyBet keeps on average.</p>
+
+{{ m.slip_tabs('codes') }}
+
+{% if not rows %}
+<p class="muted">No codes saved yet. Getting started takes a few minutes:</p>
+<ol class="start">
+  <li class="{{ 'done' if button_used else 'now' }}"><b>Add the CodeMatch button</b> <span class="muted">(once)</span>
+    <p class="muted">On <a href="{{ url_for('imports.index') }}#button">Import</a>, drag it to your bookmarks bar. It fetches from SportyBet straight into this app.</p></li>
+  <li class="{{ 'now' if button_used else '' }}"><b>Fetch codes from Code Hub, or paste your own</b>
+    <p class="muted">Below. Each code gets its own review.</p></li>
+  <li class="{{ 'done' if n_games else '' }}"><b>Optional: import your leagues</b>
+    <p class="muted">On <a href="{{ url_for('leagues.index') }}">Leagues</a>, so every game's other picks can be compared too.</p></li>
+</ol>
+{% endif %}
+
+{# ---------- the best right now ---------- #}
+{% if best or built %}
+<section class="best" aria-labelledby="best-h">
+<h2 id="best-h">Best right now</h2>
+<p class="muted">Among codes with no game started. "Best" means SportyBet keeps least of the stake, by its own
+numbers; every code still gives back less than it costs on average.</p>
+<div class="best-grid">
+  {% if best %}<div>
+    <h3>Codes that give back most per 1 staked</h3>
+    <ol class="best-list">{% for r in best %}
+      <li><span><a href="{{ url_for('codes.review_code', code=r.code) }}"><b>{{ r.code }}</b></a>
+        <span class="muted small">{{ r.n_legs }} legs · odds {{ '%.2f'|format(r.total_odds) }} · chance {{ r.joint_prob|one_in if r.joint_prob is not none else '-' }}</span></span>
+        <b class="num">{{ '%.3f'|format(r.exp_return) }}</b></li>{% endfor %}
+    </ol></div>{% endif %}
+  <div>
+    <h3>Built from the fixtures they share</h3>
+    <form method="get" class="inline-goal">
+      {% for k in ('src', 'sort') %}<input type="hidden" name="{{ k }}" value="{{ request.args.get(k, '') }}">{% endfor %}
+      <label>Total odds at least <input name="goal" type="number" min="1.01" step="0.01" value="{{ '%g'|format(goal) }}" style="width:6em"></label>
+      <button class="secondary">Build</button>
+    </form>
+    {% if built %}
+    <form method="post" class="picker" onsubmit="return false">
+    <ol class="best-list">{% for l in built.legs %}<li><label>{% if l.sel %}<input type="checkbox" name="sel" checked aria-label="Use this pick" value='{{ l.sel|tojson }}'{{ m.pick_data(l.odds, l.prob, l.event_id) }}> {% endif %}{{ l.match }}: <b>{{ l.label }}</b></label> <span class="muted">{{ l.odds }} · {{ l.prob|pct }}</span></li>{% endfor %}</ol>
+    <p>Recommended: odds <b>{{ '%.2f'|format(built.t.odds) }}</b>, chance <b>{{ built.t.prob|one_in }}</b>, back per 1 <b>{{ '%.3f'|format(built.t.ret) }}</b>.
+      Untick any you don't want, or <a href="{{ url_for('codes.fixtures', odds='%g'|format(goal)) }}#each-fixture">choose the picks yourself</a> in Fixtures across codes.</p>
+    {{ m.make_bar() }}
+    </form>
+    {% else %}<p class="muted">Needs at least two open codes that share games, and picks that reach these odds.</p>{% endif %}
+  </div>
+</div>
+</section>
+{% endif %}
+
+{# ---------- add codes: Code Hub or paste ---------- #}
+<section class="card add-codes">
+<div class="tabs" role="tablist">
+  <button type="button" role="tab" class="tab" aria-selected="true" aria-controls="tab-hub" id="t-hub">Code Hub</button>
+  <button type="button" role="tab" class="tab" aria-selected="false" aria-controls="tab-paste" id="t-paste">Paste codes</button>
+</div>
+
+<form method="post" action="{{ url_for('codes.hub') }}" id="tab-hub" role="tabpanel" aria-labelledby="t-hub" class="filters">
+  <p class="muted">The codes SportyBet users share, most popular first. One trip brings every code with its picks,
+  odds and chances.</p>
+  <div class="field-grid">
+    <label>Games in the next <select name="days">{% for d in (1, 2, 3, 5, 7) %}<option value="{{ d }}"{{ ' selected' if d == 3 }}>{{ d }} day{{ 's' if d > 1 }}</option>{% endfor %}</select></label>
+    <label>How many <select name="pages">{% for p in (1, 2, 3, 5, 10) %}<option value="{{ p }}"{{ ' selected' if p == 3 }}>about {{ p * 20 }} codes</option>{% endfor %}</select></label>
+    <label>Total odds <span class="pair"><input name="omin" type="number" min="1" step="1" placeholder="any" aria-label="Total odds from"> to <input name="omax" type="number" min="1" step="1" placeholder="any" aria-label="Total odds to"></span></label>
+    <label>Legs <span class="pair"><input name="lmin" type="number" min="1" max="50" value="1" aria-label="Legs from"> to <input name="lmax" type="number" min="1" max="50" value="50" aria-label="Legs to"></span></label>
+  </div>
+  <label class="check"><input type="checkbox" name="games" value="1" checked><span>Also fetch every game in these codes
+    <span class="muted">(1.5 s per game, up to 60), so each leg can be compared with the rest of its game</span></span></label>
+  <div class="fetch" style="margin-top:14px;">
+    <button type="button" data-cm-queue="{{ url_for('codes.hub_queue') }}">Fetch with the CodeMatch button</button>
+    <button class="secondary" style="margin-left:8px;">Console code instead</button>
+    <div class="cm-status muted" aria-live="polite" style="margin-top:6px;">
+      Opens SportyBet in a new tab; then click <b>CodeMatch</b> in your bookmarks bar there.
+      {% if not button_used %}First time? <a href="{{ url_for('imports.index') }}#button">Add the button</a> (one drag).{% endif %}
+      {% if button_outdated %}<b class="warn">Your CodeMatch bookmark is out of date:</b> <a href="{{ url_for('imports.index') }}#button">drag the new one</a> over it.{% endif %}
+    </div>
+  </div>
+</form>
+
+<form method="post" action="{{ url_for('codes.fetch') }}" id="tab-paste" role="tabpanel" aria-labelledby="t-paste" hidden>
+  <label for="codes"><b>Booking codes</b> <span class="muted">one or many, separated by spaces, commas or new lines</span></label>
+  <textarea id="codes" name="codes" rows="3" placeholder="40JGEB, 7KQ2MX"></textarea>
+  <button>Prepare the fetch</button>
+</form>
+</section>
+<script>
+(() => {
+  const tabs = [...document.querySelectorAll(".add-codes [role=tab]")];
+  const show = id => {
+    tabs.forEach(t => { const on = t.getAttribute("aria-controls") === id;
+      t.setAttribute("aria-selected", on); document.getElementById(t.getAttribute("aria-controls")).hidden = !on; });
+    try { localStorage.setItem("cm-add-tab", id); } catch (e) {}
+  };
+  tabs.forEach(t => t.addEventListener("click", () => show(t.getAttribute("aria-controls"))));
+  let last = null;
+  try { last = localStorage.getItem("cm-add-tab"); } catch (e) {}
+  {% if snippet %}show("tab-paste");{% else %}if (last) show(last);{% endif %}
+})();
+</script>
+
+{{ m.messages(msgs) }}
+{% if hub_snippet %}{{ m.snippet(hub_snippet, "Fetch the Code Hub in your browser", open=True) }}{% endif %}
+{% if snippet %}{{ m.snippet(snippet, "Fetch these codes in your browser", open=True) }}{% endif %}
+
+{# ---------- saved codes ---------- #}
+{% if rows %}
+<div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:var(--surface); border:1.5px solid var(--accent); padding:14px 18px; margin: 24px 0 16px; border-radius:var(--r-md);">
+  <div>
+    <div style="font-weight:700; color:var(--accent); font-size:16px;">⚡ Batch Code Surgeon &amp; Audit Engine</div>
+    <div class="muted small" style="margin-top:2px;">Audit and fix all open codes at once. Swaps toxic/low-chance legs for high-probability alternatives across all games in 1 click without opening matches individually.</div>
+  </div>
+  <a href="{{ url_for('codes.batch_surgeon') }}" style="display:inline-block; background:var(--accent); color:var(--accent-ink); padding:8px 18px; border-radius:var(--r-sm); font-weight:650; text-decoration:none; white-space:nowrap;">Run Batch Surgeon on All Codes &rarr;</a>
+</div>
+
+<h2>Saved codes</h2>
+{% if rows|length > 1 %}<p><a href="{{ url_for('codes.fixtures') }}"><b>Fixtures across codes</b></a>:
+the games that appear in several codes, what each code picked, and the highest-chance code you can build from them.</p>{% endif %}
+<form method="get" class="card filters"><div class="row">
+  <label>Show <select name="src" onchange="this.form.submit()">
+    <option value="all"{{ ' selected' if src == 'all' }}>all codes ({{ rows|length }})</option>
+    <option value="hub"{{ ' selected' if src == 'hub' }}>from Code Hub ({{ n_hub }})</option>
+    <option value="mine"{{ ' selected' if src == 'mine' }}>pasted by me ({{ rows|length - n_hub }})</option></select></label>
+  <label>Order by <select name="sort" onchange="this.form.submit()">
+    <option value="ret"{{ ' selected' if sort == 'ret' }}>back per 1 staked, highest first</option>
+    <option value="chance"{{ ' selected' if sort == 'chance' }}>chance of winning, highest first</option>
+    <option value="odds"{{ ' selected' if sort == 'odds' }}>total odds, lowest first</option>
+    <option value="kickoff"{{ ' selected' if sort == 'kickoff' }}>first kick-off, soonest first</option>
+    <option value="popular"{{ ' selected' if sort == 'popular' }}>Code Hub popularity</option></select></label>
+  <label class="check"><input type="checkbox" name="open" value="1"{{ ' checked' if open_only }} onchange="this.form.submit()"> only codes with no game started</label>
+  <noscript><button class="secondary">Show</button></noscript>
+</div>
+<details class="explain"><summary>Why back per 1, not chance?</summary>
+<p class="muted">A short code is always likelier than a long one, so chance alone doesn't compare codes with different
+odds. <b>Back per 1 staked</b> does: at the same total odds, the code that gives back more per 1 is the likelier one,
+because less of the stake goes to SportyBet's margin. <b>SportyBet keeps</b> is the rest.</p></details>
+</form>
+<form method="post" action="{{ url_for('codes.delete_many') }}" id="del">
+<div class="scroll"><table class="stack codes">
+<tr><th><input type="checkbox" aria-label="Tick all" onclick="document.querySelectorAll('#del input[name=code]').forEach(b => b.checked = this.checked)">
+<th>Code<th>Grade<th class="num">Legs<th class="num">Total odds<th class="num">Chance<th class="num">Back per 1<th class="num">SportyBet keeps<th>Weakest leg<th>Surgeon<th>Kick-offs</tr>
+{% for r in shown %}<tr class="{{ 'past' if r.last and r.last < now_ms() }}">
+<td><input type="checkbox" name="code" value="{{ r.code }}" aria-label="Tick {{ r.code }}">
+<td><a href="{{ url_for('codes.review_code', code=r.code) }}"><b>{{ r.code }}</b></a>{% if r.source == 'hub' %}<br><span class="muted small nowrap" title="From SportyBet's Code Hub">Code Hub{% if r.popularity %} · {{ r.popularity }} used{% endif %}</span>{% endif %}
+<td><span class="pill {{ 'good' if r.toxicity_grade in ('A', 'B') else ('warn' if r.toxicity_grade == 'C' else 'bad') }}" title="House cut: {{ '%.1f%%'|format(r.toxicity_margin_pct or 0) }}">Grade {{ r.toxicity_grade or 'C' }}</span></td>
+<td data-label="Legs" class="num">{{ r.n_legs }}{% if r.n_games != r.n_legs %} <span class="muted">on {{ r.n_games }}</span>{% endif %}
+<td data-label="Total odds" class="num">{{ '%.2f'|format(r.total_odds) }}
+<td data-label="Chance" class="num"><b>{{ r.joint_prob|one_in if r.joint_prob is not none else '-' }}</b>
+<td data-label="Back per 1" class="num">{{ m.ret(r.exp_return) }}
+<td data-label="SportyBet keeps" class="num">{{ r.keeps|pct if r.keeps is not none else '-' }}
+<td data-label="Weakest leg">{% if r.weak %}{{ r.weak.prob|pct }} <span class="muted small">{{ r.weak.match }}: {{ r.weak.pick }}</span>{% else %}-{% endif %}
+<td><a href="{{ url_for('codes.batch_surgeon', code=r.code) }}" class="button secondary small" style="padding:2px 8px; font-size:12px; text-decoration:none; font-weight:650; white-space:nowrap;">⚡ Cure</a></td>
+<td data-label="Kick-offs" class="muted small">{{ r.first|kickoff }}{% if r.last and r.last != r.first %} to {{ r.last|kickoff }}{% endif %}
+</tr>{% endfor %}
+</table></div>
+<div class="actions">
+  <button class="secondary" onclick="return confirm('Delete the ticked codes?')">Delete ticked</button>
+  <button class="secondary" formaction="{{ url_for('codes.batch_surgeon') }}" formmethod="post" style="border-color:var(--accent); color:var(--accent); font-weight:650;">⚡ Run Surgeon on Ticked</button>
+  {% if n_hub %}<button class="secondary" name="all" value="hub" onclick="return confirm('Delete the {{ n_hub }} Code Hub codes? Codes you pasted are kept.')">Delete Code Hub codes</button>{% endif %}
+  <button class="danger" name="all" value="1" onclick="return confirm('Delete all {{ rows|length }} codes? Imported games are kept.')">Delete all codes</button>
+</div>
+<p class="muted small">Greyed codes have all their games kicked off. Fetching a saved code again refreshes it.</p>
+</form>
+{% endif %}
+{% if n_hub_done %}<p class="muted small">{{ n_hub_done }} finished Code Hub code{{ 's' if n_hub_done != 1 }} left this
+list; they're kept {{ keep_days }} days for the <a href="{{ url_for('results.index') }}#hub">Code Hub track record</a>.</p>{% endif %}
+
+{% if too_many_to_pair %}<p class="muted">Similar codes are compared when 60 or fewer codes are listed. Fixtures across
+codes works with any number.</p>{% endif %}
+{% if pairs %}
+<details class="similar">
+<summary><b>Similar codes</b> <span class="muted">the {{ pairs|length }} closest pairs{% if n_pairs > pairs|length %} of {{ n_pairs }}{% endif %}</span></summary>
+<p class="muted"><b>Same picks</b> counts identical picks. <b>Related</b> also counts nested picks on the same game, like
+"Arsenal over 1.5" and "over 1.5 goals". <b>Style</b> compares the mix of pick types, even on different games.</p>
+<div class="scroll"><table><tr><th>Code<th>and<th class="num">Same picks<th class="num">Related<th class="num">Style</tr>
+{% for p in pairs %}<tr>
+<td><a href="{{ url_for('codes.review_code', code=p.a) }}">{{ p.a }}</a>
+<td><a href="{{ url_for('codes.review_code', code=p.b) }}">{{ p.b }}</a>
+<td class="num">{{ p.exact|pct }} <span class="muted">({{ p.shared }})</span><td class="num">{{ p.aware|pct }}<td class="num">{{ p.style|pct }}</tr>{% endfor %}
+</table></div>
+</details>
+{% endif %}
+{% endblock %}

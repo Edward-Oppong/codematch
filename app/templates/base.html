@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}CodeMatch{% endblock %}</title>
+<script>
+  // set the theme before anything paints, so a dark-mode choice doesn't flash white
+  try { const t = localStorage.getItem("cm-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Public+Sans:wght@400..700&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <a class="brand" href="{{ url_for('codes.index') }}">Code<span>Match</span></a>
+  <nav aria-label="Sections">
+    {% set ep = request.endpoint or '' %}
+    {% for name, endpoint, prefix in [('Hunt', 'leagues.singles', 'leagues.'), ('Slip Lab', 'codes.index', 'codes.'), ('Games', 'games.index', 'games.'), ('Track', 'results.index', 'results.'), ('Guide', 'codes.guide', 'codes.guide'), ('Sync', 'imports.index', 'imports.')] %}
+    <a href="{{ url_for(endpoint) }}"{% if ep.startswith(prefix) %} class="on" aria-current="page"{% endif %}>{{ name }}</a>
+    {% endfor %}
+  </nav>
+  <button type="button" class="theme" id="theme" title="Theme: follow device" aria-label="Change theme">◐</button>
+</div></header>
+<main>
+{% block body %}{% endblock %}
+<div class="floating-dock" id="cm-floating-dock" role="region" aria-label="Selected Picks">
+  <div class="dock-stats"><span><b>0</b> picks</span></div>
+  <button type="button" class="dock-action" id="cm-dock-submit">⚡ Make Booking Code</button>
+  <button type="button" class="dock-clear" id="cm-dock-clear">Clear</button>
+</div>
+</main>
+<footer>
+  <p>Chances are SportyBet's own. Every pick carries the bookmaker's margin, so on average every bet returns less than
+  it costs, and combining picks multiplies that. Not affiliated with SportyBet. · <a href="{{ url_for('codes.guide') }}"><b>Master Guide &amp; Glossary</b></a></p>
+  <label>Times in <select id="tz"><option value="utc">Ghana (UTC)</option><option value="local">this device</option></select></label>
+</footer>
+<script>
+(function () {
+  const root = document.documentElement, btn = document.getElementById("theme");
+  const order = ["", "light", "dark"], names = { "": "follow device", light: "light", dark: "dark" }, icons = { "": "◐", light: "☀", dark: "☾" };
+  const show = t => { btn.textContent = icons[t]; btn.title = "Theme: " + names[t]; };
+  let cur = root.dataset.theme || ""; show(cur);
+  btn.addEventListener("click", () => {
+    cur = order[(order.indexOf(cur) + 1) % order.length];
+    if (cur) root.dataset.theme = cur; else delete root.dataset.theme;
+    try { cur ? localStorage.setItem("cm-theme", cur) : localStorage.removeItem("cm-theme"); } catch (e) {}
+    show(cur);
+  });
+
+  // kick-off times: written in UTC (Ghana time) by the server, optionally shown in this device's time
+  const tz = document.getElementById("tz");
+  let mode = "utc"; try { mode = localStorage.getItem("cm-tz") || "utc"; } catch (e) {}
+  tz.value = mode;
+  const opts = {
+    "%a %d %b %H:%M": { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false },
+    "%d %b": { day: "2-digit", month: "short" }, "%d %b %Y": { day: "2-digit", month: "short", year: "numeric" } };
+  function paint() {
+    document.querySelectorAll("time[data-ms]").forEach(el => {
+      if (!el.dataset.utc) el.dataset.utc = el.textContent;
+      if (mode !== "local") { el.textContent = el.dataset.utc; return; }
+      const o = opts[el.dataset.fmt] || opts["%a %d %b %H:%M"];
+      el.textContent = new Date(+el.dataset.ms).toLocaleString("en-GB", o).replace(",", "");
+    });
+  }
+  tz.addEventListener("change", () => { mode = tz.value; try { localStorage.setItem("cm-tz", mode); } catch (e) {} paint(); });
+  paint();
+
+  // Pick lists (form.picker): tick every pick, ready-made sets (data-tick), one pick per game, and a live total.
+  const MAX = 50;
+  const picks = form => [...form.querySelectorAll("input[name=sel]")];
+  const fmtP = p => p >= 0.5 ? (p * 100).toFixed(1) + "%" : "1 in " + Math.round(1 / p).toLocaleString();
+  function sum(form) {
+    const on = picks(form).filter(i => i.checked);
+    const per = Math.min(MAX, Math.max(1, parseInt((form.querySelector("[name=per_code]") || {}).value) || MAX));
+    const k = Math.ceil(on.length / per);
+    const games = new Set(on.map(i => i.dataset.game));
+    let odds = 1, prob = 1, known = true;
+    on.forEach(i => { odds *= parseFloat(i.dataset.odds) || 1; if (i.dataset.prob) prob *= parseFloat(i.dataset.prob); else known = false; });
+    let t = !on.length ? "Nothing ticked." :
+      on.length + " pick" + (on.length > 1 ? "s" : "") + " ticked";
+    if (on.length && k <= 1) t += ": total odds " + odds.toFixed(2) + (known ? ", chance " + fmtP(prob) + " on SportyBet's numbers" : "") + ".";
+    else if (k > 1) t += ": made as " + k + " codes of up to " + Math.ceil(on.length / k) + " picks each.";
+    if (k > 10) t += " That's more than the 10 codes made in one go: untick some, or raise the picks per code.";
+    else if (games.size > 40) t += " Each game is fetched again first, so the trip takes about " + Math.ceil(games.size * 1.5 / 60) + " minutes.";
+    if (games.size < on.length) t += " " + (on.length - games.size) + " extra pick(s) share a game with another ticked pick; SportyBet may refuse them.";
+    form.querySelectorAll(".picker-sum").forEach(el => el.textContent = t);
+
+    // Floating action dock
+    const dock = document.getElementById("cm-floating-dock");
+    if (dock) {
+      if (on.length > 0) {
+        dock.classList.add("show");
+        const stats = dock.querySelector(".dock-stats");
+        if (stats) {
+          stats.innerHTML = `<span><b>${on.length}</b> pick${on.length > 1 ? 's' : ''}</span> · <span>Odds: <b>${odds.toFixed(2)}</b></span>${known ? ` · <span>Chance: <b>${fmtP(prob)}</b></span>` : ''}`;
+        }
+      } else {
+        dock.classList.remove("show");
+      }
+    }
+  }
+  const onePerGame = (form, box) => {
+    if (!box.checked || !box.dataset.game) return;
+    picks(form).forEach(i => { if (i !== box && i.dataset.game === box.dataset.game) i.checked = false; });
+  };
+  document.querySelectorAll("form.picker").forEach(sum);
+  const dockSubmit = document.getElementById("cm-dock-submit");
+  if (dockSubmit) {
+    dockSubmit.addEventListener("click", () => {
+      const activeForm = document.querySelector("form.picker:has(input[name=sel]:checked)") || document.querySelector("form.picker");
+      if (activeForm) {
+        const btn = activeForm.querySelector("[data-cm-queue]");
+        if (btn) btn.click();
+      }
+    });
+  }
+  const dockClear = document.getElementById("cm-dock-clear");
+  if (dockClear) {
+    dockClear.addEventListener("click", () => {
+      document.querySelectorAll("form.picker").forEach(form => {
+        picks(form).forEach(i => i.checked = false);
+        sum(form);
+      });
+    });
+  }
+  document.addEventListener("change", ev => {
+    const form = ev.target.closest("form.picker");
+    if (!form) return;
+    if (ev.target.matches("[data-tick-all]")) {
+      const seen = new Set();             // the first (best-ranked) pick of each game
+      picks(form).forEach(i => { const first = !seen.has(i.dataset.game); seen.add(i.dataset.game); i.checked = ev.target.checked && first; });
+    } else if (ev.target.name === "sel" && form.querySelector("[data-tick]")) onePerGame(form, ev.target);
+    if (ev.target.name === "sel" || ev.target.name === "per_code" || ev.target.matches("[data-tick-all]")) sum(form);
+  });
+  document.addEventListener("input", ev => { const form = ev.target.closest("form.picker"); if (form && ev.target.name === "per_code") sum(form); });
+  document.addEventListener("click", ev => {
+    const b = ev.target.closest("[data-tick], [data-tick-group]");
+    if (!b) return;
+    const form = b.closest("form");
+    if (b.dataset.tickGroup !== undefined) {            // every league of one country
+      const boxes = [...b.closest("[data-group]").querySelectorAll("label:not([hidden]) input[type=checkbox]")];
+      const on = !boxes.every(i => i.checked);
+      boxes.forEach(i => i.checked = on);
+      b.textContent = on ? "untick these" : "tick all shown";
+      return;
+    }
+    const want = b.dataset.tick;
+    picks(form).forEach(i => i.checked = false);
+    if (want !== "none") {
+      const seen = new Set();
+      picks(form).forEach(i => { if (i.hasAttribute("data-" + want) && !seen.has(i.dataset.game)) { i.checked = true; seen.add(i.dataset.game); } });
+    }
+    sum(form);
+  });
+  // a search box that hides the labels it doesn't match (data-filter = which labels), and opens closed lists
+  document.querySelectorAll("input[data-filter]").forEach(inp => inp.addEventListener("input", () => {
+    const q = inp.value.trim().toLowerCase();
+    const els = [...document.querySelectorAll(inp.dataset.filter)];
+    let n = 0;
+    els.forEach(el => { const hit = !q || (el.dataset.text || el.textContent).toLowerCase().includes(q); el.hidden = !hit; n += hit; });
+    document.querySelectorAll("[data-group]").forEach(g => g.hidden = q && !g.querySelector("label:not([hidden])"));
+    if (q) document.querySelectorAll("details[data-open-on-filter]").forEach(d => d.open = true);
+    const c = inp.closest("form").querySelector(".picker-count");
+    if (c) c.textContent = q ? n + " matching" : "";
+  }));
+
+  // "Fetch with the CodeMatch button": queue the fetch here, open SportyBet, then watch for the result.
+  // A button carries its fetch list (data-cm-job), or asks a URL to build one from its form (data-cm-queue).
+  const esc = t => t.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  document.addEventListener("click", async ev => {
+    const btn = ev.target.closest("[data-cm-job], [data-cm-queue]");
+    if (!btn) return;
+    ev.preventDefault();
+    const out = (btn.closest(".fetch") || btn.parentElement).querySelector(".cm-status");
+    const queue = btn.dataset.cmQueue
+      ? fetch(btn.dataset.cmQueue, { method: "POST", body: new FormData(btn.form) })
+      : fetch("{{ url_for('bridge.queue') }}", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ label: btn.dataset.label, requests: JSON.parse(btn.dataset.cmJob) }) });
+    const tab = window.open("about:blank", "cm-sportybet");        // opened now, while the click still counts
+    btn.disabled = true;
+    let job;
+    try {
+      const r = await queue;
+      job = await r.json();
+      if (!r.ok) throw Error(job.error || r.status);
+    } catch (e) {
+      if (tab) tab.close();
+      out.textContent = "Couldn't start the fetch: " + e.message;
+      btn.disabled = false;
+      return;
+    }
+    const tabBlocked = !tab || tab.closed || typeof tab.closed === "undefined";
+    if (tab && !tabBlocked) {
+      try { tab.location = "https://www.sportybet.com/gh/"; } catch (e) {}
+    }
+    const renderWaiting = (sec) => {
+      let hint = "";
+      if (sec >= 10) {
+        hint = `<div style="margin-top:6px; padding-top:6px; border-top:1px dashed var(--rule); color:var(--med); font-size:12px;">
+          <b>Still waiting?</b> Make sure to click <b>CodeMatch</b> in your bookmarks bar on the SportyBet tab. If Chrome asked to access your local network, click <b>Allow</b>.
+          Or <a href="{{ url_for('imports.index') }}#button" target="_blank">troubleshoot the button</a>.
+        </div>`;
+      }
+      out.innerHTML = `<div class="cm-callout" style="margin-top:8px; padding:10px 14px; background:var(--surface); border:1px solid var(--accent); border-radius:var(--r-md); font-size:13px; line-height:1.5;">
+        <div style="font-weight:700; color:var(--accent); font-size:14px; margin-bottom:4px;">🚀 Ready — Step 2 of 2</div>
+        <div>1. Go to the SportyBet tab: ${tabBlocked ? '<a href="https://www.sportybet.com/gh/" target="_blank" style="font-weight:700; color:var(--accent);">Open SportyBet here &rarr;</a> (pop-up was blocked)' : '<b>SportyBet tab is open</b>'}</div>
+        <div>2. Click <b>CodeMatch</b> in your browser bookmarks bar there.</div>
+        <div>3. The data transfers here automatically.</div>
+        ${hint}
+      </div>`;
+    };
+    renderWaiting(0);
+    const started = Date.now();
+    const tick = async () => {
+      let s;
+      try { s = await (await fetch("{{ url_for('bridge.status') }}?job=" + job.id)).json(); } catch (e) { s = {}; }
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      if (s.status === "waiting") {
+        renderWaiting(elapsed);
+      } else if (s.status === "fetching") {
+        out.innerHTML = `<div style="margin-top:8px; padding:10px 14px; background:var(--surface); border:1px solid var(--accent); border-radius:var(--r-md); font-weight:600; color:var(--accent);">
+          ⏳ Fetching: ${s.received} of ${s.total} items received...
+        </div>`;
+      }
+      if (s.status === "done") {
+        btn.disabled = false;
+        const list = (s.msgs || []).slice(-6).map(m => "<li class='" + (m[0] ? "" : "bad") + "'>" + esc(m[1]) + "</li>").join("");
+        if (s.check_html) { out.innerHTML = s.check_html; return; }       // a code was made: show what moved
+        out.innerHTML = "<div style='margin-top:8px; padding:10px 14px; background:var(--surface); border:1px solid var(--accent); border-radius:var(--r-md);'>" +
+          "<b>Done:</b> " + esc(s.summary) + (s.failed ? " " + s.failed + " request(s) failed." : "") +
+          (list ? "<ul class='cm-msgs'>" + list + "</ul>" : "") +
+          " <button type='button' class='secondary' onclick='location.reload()'>Show the new data</button></div>";
+        return;
+      }
+      if (Date.now() - started < 15 * 60 * 1000) setTimeout(tick, 2000);
+      else { out.textContent = "Stopped waiting. Press the button again when you're ready."; btn.disabled = false; }
+    };
+    tick();
+  });
+})();
+</script>
+</body>
+</html>

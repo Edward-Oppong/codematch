@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m_ with context %}
+{% block title %}Results · CodeMatch{% endblock %}
+{% block body %}
+{{ m_.flow_tracker(4) }}
+
+<h1>Results &amp; Bankroll Management</h1>
+<p class="lede">What you staked, what came back, and whether SportyBet's chances came true.</p>
+<p class="muted">Goal legs settle on their own once a finished game is imported; bookings, corners and other markets need you to mark them.</p>
+{{ m_.messages(msgs) }}
+
+{% set t = m.total %}{% set mo = m.this_month %}
+<div class="figures">
+  {{ m_.figure("Staked this month", '%.2f'|format(mo.staked), small=('of ' ~ '%g'|format(limit)) if limit else None) }}
+  {{ m_.figure("Result this month", '%+.2f'|format(mo.net), cls='good' if mo.net > 0 else ('bad' if mo.net < 0 else '')) }}
+  {{ m_.figure("Staked in all", '%.2f'|format(t.staked)) }}
+  {{ m_.figure("Paid back in all", '%.2f'|format(t.returned)) }}
+  {{ m_.figure("Result in all", '%+.2f'|format(t.net), cls='good' if t.net > 0 else ('bad' if t.net < 0 else '')) }}
+  {{ m_.figure("Bets won", t.won ~ " of " ~ (t.won + t.lost)) }}
+</div>
+</div>
+{% if t.pending %}<p class="muted">{{ '%.2f'|format(t.pending) }} is still in bets that haven't finished.</p>{% endif %}
+{% if limit and mo.staked > limit %}<p class="msg bad">You're over the monthly limit you set ({{ '%g'|format(limit) }}).</p>
+{% elif limit and mo.staked > 0.8 * limit %}<p class="msg">You've used {{ (100 * mo.staked / limit)|round|int }}% of your monthly limit.</p>{% endif %}
+
+{% if account_shield and account_shield.withdrawal_suggested %}
+<p class="msg good">🛡️ <b>Account Protection Advisor:</b> Your total net profit is over 50% of your starting bankroll (+{{ '%.2f'|format(t.net) }}). Consider withdrawing capital to protect your bankroll and reset bookmaker profiling.</p>
+{% endif %}
+{% if account_shield and account_shield.high_concentration %}
+<p class="msg warn">🛡️ <b>Account Longevity Warning:</b> {{ account_shield.high_concentration[1] }}% of your recorded bets are concentrated in <b>{{ account_shield.high_concentration[0] }}</b>. Bookmakers flag repetitive single-market specialists. Consider diversifying markets or interleaving casual bet formats.</p>
+{% endif %}
+
+<div class="cards">
+<form method="post" action="{{ url_for('results.add_bet') }}" class="card filters" style="flex:2;min-width:280px">
+  <b>Record a bet</b>
+  <div class="row"><label>Code <select name="code">{% for c in codes %}<option>{{ c }}</option>{% endfor %}</select></label>
+  <label>Stake <input name="stake" size="6" inputmode="decimal"></label><button>Save</button></div>
+  {% if not codes %}<p class="muted">Save the code on the <a href="{{ url_for('codes.index') }}">Codes</a> page first.</p>{% endif %}
+</form>
+<form method="post" action="{{ url_for('results.set_limit') }}" class="card filters" style="flex:1;min-width:240px">
+  <b>Monthly limit</b>
+  <div class="row"><input name="limit" size="6" value="{{ '%g'|format(limit) if limit else '' }}" placeholder="none" inputmode="decimal"><button>Set</button></div>
+  <p class="muted">The most you're willing to lose in a month. The app warns you; it doesn't stop you.</p>
+</form>
+<form method="post" action="{{ url_for('results.set_bankroll') }}" class="card filters" style="flex:1;min-width:240px">
+  <b>Bankroll &amp; Kelly Sizing</b>
+  <div class="row">
+    <label>Bankroll <input name="bankroll" size="8" value="{{ '%g'|format(bankroll) if bankroll else '' }}" placeholder="e.g. 500" inputmode="decimal"></label>
+    <label>Kelly fraction <select name="fraction">
+      <option value="0.25" {{ 'selected' if kelly_fraction == 0.25 }}>Quarter (safest)</option>
+      <option value="0.5" {{ 'selected' if kelly_fraction == 0.5 }}>Half</option>
+      <option value="1.0" {{ 'selected' if kelly_fraction == 1.0 }}>Full</option>
+    </select></label>
+    <button>Set</button>
+  </div>
+  <p class="muted">Your total betting fund. Used to show exact stake amounts on Value Singles and code reviews.</p>
+</form>
+</div>
+
+{% if score_snippet %}
+<h2>Games waiting for a score</h2>
+<p class="muted">{{ need_score }} game{{ 's' if need_score != 1 }} in your codes should have finished. Fetch them to settle their legs.</p>
+{{ m_.snippet(score_snippet, "Fetch final scores", open=True) }}
+{% endif %}
+
+{% if need_manual %}
+<h2>Legs to mark by hand <span class="muted">({{ n_manual }})</span></h2>
+<p class="muted">Bookings, corners and markets the app can't settle from the score. Played codes first. Marked one
+wrongly? Open the code and press Undo next to that leg.</p>
+<div class="scroll"><table><tr><th>Code<th>Game<th>Pick<th>Odds<th>Result</tr>
+{% for c, l in need_manual %}<tr><td>{{ c }}{% if c in played %} <span class="pill">played</span>{% endif %}
+<td>{{ l.match }}<br><span class="muted">{{ l.start_ms|kickoff }}</span><td>{{ l.market }}: <b>{{ l.pick }}</b><td>{{ l.odds }}
+<td><form method="post" action="{{ url_for('results.set_leg') }}" class="row" style="display:flex;gap:6px">
+  <input type="hidden" name="code" value="{{ c }}"><input type="hidden" name="sel_key" value="{{ l.sel_key }}">
+  <button name="status" value="won">Won</button><button class="danger" name="status" value="lost">Lost</button>
+  <button class="secondary" name="status" value="void">Void</button></form></tr>{% endfor %}
+</table></div>
+{% endif %}
+
+<h2>Your bets</h2>
+{% if m.rows %}
+<div class="scroll"><table><tr><th>Placed<th>Code<th>Legs<th>Stake<th>Status<th>Paid<th>Result<th></tr>
+{% for b in m.rows %}<tr>
+<td class="muted">{{ (b.placed_at * 1000)|kickoff('%d %b %Y') }}
+<td>{% if b.code in settled %}<a href="{{ url_for('codes.review_code', code=b.code) }}">{{ b.code }}</a>{% else %}{{ b.code }}{% endif %}
+<td>{{ b.n_legs or '-' }}<td>{{ '%.2f'|format(b.stake) }}
+<td>{% if b.status == 'won' %}<span class="good">won</span>{% elif b.status == 'lost' %}<span class="bad">lost</span>{% else %}<span class="muted">running</span>
+  {% set s = settled.get(b.code) %}{% if s %}<span class="muted">({{ s.legs|selectattr('status', 'equalto', 'won')|list|length }} of {{ s.legs|length }} legs won so far)</span>{% endif %}{% endif %}
+<td>{{ '%.2f'|format(b.payout_calc) if b.payout_calc is not none else '-' }}
+<td>{% if b.payout_calc is not none %}<span class="{{ 'good' if b.payout_calc > b.stake else 'bad' }}">{{ '%+.2f'|format(b.payout_calc - b.stake) }}</span>{% endif %}
+<td><form method="post" action="{{ url_for('results.edit_bet', bet_id=b.id) }}" style="display:flex;gap:6px;flex-wrap:wrap">
+  <input name="payout" size="6" placeholder="paid" title="What SportyBet actually paid (cash-out, or a different settlement)">
+  <button class="secondary" name="action" value="payout">Set</button>
+  {% if b.payout is not none %}<button class="secondary" name="action" value="recalc" title="Work it out from the legs again">Recalc</button>{% endif %}
+  <button class="danger" name="action" value="delete" onclick="return confirm('Delete this bet from your record?')">&times;</button></form>
+</tr>{% endfor %}</table></div>
+{% else %}<p class="muted">No bets recorded. After placing a code on SportyBet, record it here (or from the code's review page).</p>{% endif %}
+
+{% if m.months|length > 1 or m.sizes %}
+<div class="cards">
+{% if m.months %}<div class="card" style="flex:1;min-width:260px"><b>By month</b>
+<table><tr><th>Month<th>Staked<th>Returned<th>Result</tr>
+{% for month, v in m.months %}<tr><td>{{ month }}<td>{{ '%.2f'|format(v.staked) }}<td>{{ '%.2f'|format(v.returned) }}
+<td class="{{ 'good' if v.net > 0 else ('bad' if v.net < 0 else '') }}">{{ '%+.2f'|format(v.net) }}</tr>{% endfor %}</table></div>{% endif %}
+{% if m.sizes %}<div class="card" style="flex:1;min-width:260px"><b>By code size</b>
+<table><tr><th>Legs<th>Bets<th>Won<th>Staked<th>Result</tr>
+{% for name, v in m.sizes %}<tr><td>{{ name }}<td>{{ v.n }}<td>{{ v.won }}<td>{{ '%.2f'|format(v.staked) }}
+<td class="{{ 'good' if v.returned > v.staked else 'bad' }}">{{ '%+.2f'|format(v.returned - v.staked) }}</tr>{% endfor %}</table></div>{% endif %}
+</div>
+{% endif %}
+
+<h2>Closing Line Value (CLV) Analysis</h2>
+{% if clv.n > 0 %}
+<div class="figures">
+  {{ m_.figure("Bets analysed", clv.n) }}
+  {{ m_.figure("Beat closing line", '%d (%.0f%%)'|format(clv.beat, clv.beat_pct), cls='good' if clv.beat_pct > 50 else 'bad') }}
+  {{ m_.figure("Avg CLV (weighted)", '%+.1f%%'|format(clv.avg_clv), cls='good' if clv.avg_clv > 0 else 'bad') }}
+  {{ m_.figure("Expected P&L", '%+.2f'|format(clv.expected_pnl), cls='good' if clv.expected_pnl > 0 else 'bad') }}
+  {{ m_.figure("Realized P&L", '%+.2f'|format(clv.realized_pnl), cls='good' if clv.realized_pnl > 0 else 'bad') }}
+</div>
+<p class="muted">Beating the closing line (CLV &gt; 0%) is the professional standard for proving positive expected value.
+If your average CLV is positive, you are consistently finding prices before the market corrects them.</p>
+{% if clv['items'] %}
+<div class="scroll"><table class="stack">
+<tr><th>Code<th class="num">Placed Odds<th class="num">Closing Odds<th class="num">CLV %<th class="num">Expected P&amp;L</tr>
+{% for r in clv['items'][:20] %}<tr>
+<td><a href="{{ url_for('codes.review_code', code=r.code) }}">{{ r.code }}</a>
+<td class="num">{{ '%.2f'|format(r.placed_odds) }}
+<td class="num">{{ '%.2f'|format(r.closing_odds) }}
+<td class="num {{ 'good' if r.beat else 'bad' }}"><b>{{ '%+.1f%%'|format(r.clv_pct) }}</b>
+<td class="num">{{ '%+.2f'|format(r.exp_pnl) }}
+</tr>{% endfor %}
+</table></div>
+{% endif %}
+{% else %}<p class="muted">Record bets on codes to track closing line value over time.</p>{% endif %}
+
+<h2>Personal Calibration &amp; Empirical Edge</h2>
+{% if edge_summary.n > 0 %}
+<div class="figures">
+  {{ m_.figure("Settled legs", edge_summary.n) }}
+  {{ m_.figure("Actual win rate", '%.1f%%'|format(edge_summary.win_rate * 100)) }}
+  {{ m_.figure("SportyBet stated", '%.1f%%'|format(edge_summary.avg_stated * 100)) }}
+  {{ m_.figure("Empirical edge", '%+.1f%%'|format(edge_summary.edge_pct), cls='good' if edge_summary.edge_pct > 0 else ('bad' if edge_summary.edge_pct < 0 else '')) }}
+  {{ m_.figure("Kelly Tier", kelly_tier|capitalize, cls='good' if kelly_tier == 'ready' else 'warn') }}
+</div>
+<p class="muted"><b>95% Confidence Interval:</b> {{ '%.1f%%'|format(edge_summary.ci_low * 100) }} to {{ '%.1f%%'|format(edge_summary.ci_high * 100) }}.
+{{ edge_summary.message }}</p>
+
+{% if edge_rows %}
+<div class="scroll"><table class="stack">
+<tr>
+  <th>Market Family</th>
+  <th class="num">Legs</th>
+  <th class="num">Won</th>
+  <th class="num">Win Rate</th>
+  <th class="num">SportyBet Stated</th>
+  <th class="num">Edge vs SB</th>
+  <th class="num">95% CI</th>
+  <th>Status</th>
+</tr>
+{% for r in edge_rows %}
+<tr>
+  <td><b>{{ r.family }}</b></td>
+  <td class="num">{{ r.n }}</td>
+  <td class="num">{{ r.wins }}</td>
+  <td class="num"><b>{{ '%.1f%%'|format(r.win_rate * 100) }}</b></td>
+  <td class="num">{{ '%.1f%%'|format(r.avg_stated * 100) }}</td>
+  <td class="num {{ 'good' if r.edge_pct > 0 else ('bad' if r.edge_pct < 0 else '') }}"><b>{{ '%+.1f%%'|format(r.edge_pct) }}</b></td>
+  <td class="num muted">{{ '%.0f%%-%.0f%%'|format(r.ci_low * 100, r.ci_high * 100) }}</td>
+  <td>
+    {% if r.significant and r.edge_pct > 0 %}
+      <span class="pill good">Beat Bookmaker</span>
+    {% elif r.significant and r.edge_pct < 0 %}
+      <span class="pill bad">Underperforming</span>
+    {% elif r.n >= 50 %}
+      <span class="pill">Tracking Stated</span>
+    {% else %}
+      <span class="pill muted">Sample &lt; 50</span>
+    {% endif %}
+    <br><small class="muted">{{ r.message }}</small>
+  </td>
+</tr>
+{% endfor %}
+</table></div>
+{% endif %}
+{% else %}
+<p class="muted">Settle legs on your recorded codes to benchmark your actual win rates against SportyBet's pricing by market family.</p>
+{% endif %}
+
+<h2>Predictions vs. Actual Match Results</h2>
+{% if comp_stats and comp_stats.total > 0 %}
+<div class="figures">
+  {{ m_.figure("Settled Predictions", comp_stats.total) }}
+  {{ m_.figure("Predictions Won", comp_stats.won, cls='good') }}
+  {{ m_.figure("Actual Win Rate", '%.1f%%'|format(comp_stats.win_rate), cls='good' if comp_stats.win_rate >= comp_stats.avg_prob else 'warn') }}
+  {{ m_.figure("Avg Expected Prob", '%.1f%%'|format(comp_stats.avg_prob)) }}
+</div>
+<p class="muted">Side-by-side verification comparing CodeMatch market predictions with final scorelines across finished matches:</p>
+<div class="scroll"><table class="stack">
+<tr>
+  <th>Match &amp; Final Score</th>
+  <th>Market &amp; Pick</th>
+  <th class="num">Odds</th>
+  <th class="num">Predicted Chance</th>
+  <th class="num">Outcome</th>
+  <th>Source</th>
+</tr>
+{% for p in settled_comparisons %}
+<tr>
+  <td>
+    <b>{{ p.match }}</b>
+    {% if p.score %}<br><span class="muted small">🏁 {{ p.score }}</span>{% endif %}
+  </td>
+  <td><b>{{ p.market }}:</b> {{ p.pick }}</td>
+  <td class="num">{{ '%.2f'|format(p.odds) }}</td>
+  <td class="num"><b>{{ '%.1f%%'|format(p.prob * 100) if p.prob else '-' }}</b></td>
+  <td class="num">
+    {% if p.status == 'won' %}
+      <span class="pill good" style="font-weight:700;">✓ Won</span>
+    {% elif p.status == 'lost' %}
+      <span class="pill bad">✗ Lost</span>
+    {% elif p.status == 'void' %}
+      <span class="pill">Void</span>
+    {% else %}
+      <span class="muted">-</span>
+    {% endif %}
+  </td>
+  <td class="small muted">{{ p.source }}</td>
+</tr>
+{% endfor %}
+</table></div>
+{% else %}
+<p class="muted">No matches with scores settled yet. Fetch final scores using the button above to evaluate predictions.</p>
+{% endif %}
+
+<h2>Did SportyBet's chances come true?</h2>
+{% if calib %}
+<p class="muted">Every settled leg in your saved codes ({{ n_settled }}), played or not, grouped by the chance SportyBet gave it.
+If their chances are right, "actually won" should land inside the expected range.{% if n_settled < 200 %} With only {{ n_settled }}
+legs the ranges are wide; this becomes meaningful after a few hundred.{% endif %}</p>
+<div class="scroll"><table><tr><th>SportyBet said<th>Legs<th>Average stated chance<th>Actually won<th>Expected range</tr>
+{% for c in calib %}<tr><td>{{ c.range }}<td>{{ c.n }}<td>{{ c.stated|pct(1) }}
+<td class="{{ 'bad' if c.actual < c.low else ('good' if c.actual > c.high else '') }}">{{ c.actual|pct(1) }}
+<td class="muted">{{ c.low|pct }} to {{ c.high|pct }}</tr>{% endfor %}</table></div>
+{% else %}<p class="muted">Nothing settled yet.</p>{% endif %}
+
+<h2 id="hub">Code Hub track record</h2>
+{% if hub_rec %}
+<p class="muted">Every Code Hub code that has finished, whether you played it or not, as if 1 had been staked on each.
+Kept even after the codes themselves are deleted.
+"Expected" is what SportyBet's own chances say. If popular codes knew something SportyBet doesn't, their wins would
+land above the expected range while the others' don't.{% if hub_rec[0].n < 100 %} With {{ hub_rec[0].n }} codes the
+ranges are wide; give it a few hundred.{% endif %}</p>
+<div class="scroll"><table class="stack"><tr><th>Codes<th class="num">Finished<th class="num">Won<th class="num">Expected wins<th>Expected range<th class="num">1 on each: back<th class="num">Expected back</tr>
+{% for g in hub_rec %}<tr{% if g.key == 'all' %} class="total"{% endif %}><td>{{ g.name }}<td data-label="Finished" class="num">{{ g.n }}
+<td data-label="Won" class="num {{ 'good' if g.won > g.high else ('bad' if g.won < g.low else '') }}"><b>{{ g.won }}</b>
+<td data-label="Expected wins" class="num">{{ '%.1f'|format(g.expected) }}
+<td data-label="Expected range" class="muted">{{ '%.0f'|format(g.low) }} to {{ '%.0f'|format(g.high) }}
+<td data-label="1 on each: back" class="num">{{ '%.2f'|format(g.returned) }} <span class="muted">of {{ g.n }}</span>
+<td data-label="Expected back" class="num">{{ '%.2f'|format(g.ret_expected) }}</tr>{% endfor %}</table></div>
+{% elif n_hub %}<p class="muted">No Code Hub code has finished yet.</p>
+{% else %}<p class="muted">Fetch codes from Code Hub on the <a href="{{ url_for('codes.index') }}">Codes</a> page; once their games are played
+and their scores fetched (above), this shows whether popular codes do any better than SportyBet's chances say.</p>{% endif %}
+{% if hub_running %}<p class="muted">{{ hub_running }} Code Hub code{{ 's' if hub_running != 1 }} still running{% if hub_manual %};
+{{ hub_manual }} of their legs (bookings, corners, early payouts that can't be told from the score) only settle if you
+mark them on the code's page{% endif %}. A code counts as soon as one leg loses.</p>{% endif %}
+
+<h2>Delete your bet record</h2>
+<p class="muted">Removes every recorded bet, every leg you marked by hand and the Code Hub track record. Codes, games
+and your monthly limit stay.
+This can't be undone.</p>
+<form method="post" action="{{ url_for('results.clear_record') }}" class="actions">
+  <label>Type <b>DELETE</b> to confirm <input name="confirm" size="8" autocomplete="off"></label>
+  <button class="danger">Delete my bet record</button>
+</form>
+{% endblock %}

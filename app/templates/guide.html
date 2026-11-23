@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Master Guide · How CodeMatch Works · CodeMatch{% endblock %}
+{% block body %}
+<h1>Master Guide: How Everything Works</h1>
+<p class="lede">From setting up your browser button to mathematical advantage betting — every metric, tool, and concept explained in plain English.</p>
+
+<div class="card" style="margin: 16px 0 24px; border-left: 4px solid var(--accent);">
+  <b>The Core Principle of CodeMatch:</b>
+  <p class="muted">CodeMatch is not a tipster and never predicts match scores. It is an <b>honest mathematical auditor</b> that uses SportyBet's own live odds and underlying probabilities to reveal what a bet really costs, how much house margin is being extracted, and how to structure positive-expectation bets.</p>
+</div>
+
+<h2>Table of Contents</h2>
+<ol class="plain" style="margin-bottom:24px">
+  <li><a href="#setup">1. Setting Up the CodeMatch Bookmark Button</a></li>
+  <li><a href="#hunt">2. The Hunt — Value Singles, Odds Steam &amp; Leagues</a></li>
+  <li><a href="#sliplab">3. Slip Lab — Acca Toxicity, Custom Parlay Builder &amp; Code Surgeon</a></li>
+  <li><a href="#results">4. Results Settlement — Finished Matches &amp; Predictions vs. Reality</a></li>
+  <li><a href="#staking">5. Track — Staking, Kelly Sizing, CLV &amp; Calibration</a></li>
+  <li><a href="#markets">6. Market Families Explained</a></li>
+  <li><a href="#glossary">7. Complete Metric Glossary</a></li>
+  <li><a href="#deploy">8. Deployment — Run CodeMatch on a Server (Cloud Deployment)</a></li>
+</ol>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 1. SETUP ─── #}
+<h2 id="setup">1. Setting Up the CodeMatch Bookmark Button</h2>
+<p class="muted">SportyBet blocks servers from downloading their odds directly. To keep the app 100% private and working forever, fetching happens right inside your own browser through a simple bookmark.</p>
+
+<div class="cards">
+  <div class="card" style="flex:1;min-width:280px">
+    <b>How to add it (1-minute setup):</b>
+    <ol class="steps" style="padding-left:18px;margin-top:8px">
+      <li>Make sure your browser's <b>Bookmarks Bar</b> is visible (<code>Ctrl + Shift + B</code> on Chrome / Edge).</li>
+      <li>Go to the <a href="{{ url_for('imports.index') }}#button">Sync / Import page</a>.</li>
+      <li>Click and drag the black <b>CodeMatch</b> button directly onto your bookmarks bar.</li>
+      <li><i>Done!</i> You now have the CodeMatch button installed.</li>
+    </ol>
+  </div>
+  <div class="card" style="flex:1;min-width:280px">
+    <b>How it works in practice:</b>
+    <ol class="steps" style="padding-left:18px;margin-top:8px">
+      <li>Whenever you press any <b>"Fetch with CodeMatch button"</b> in this app, SportyBet opens in a new tab.</li>
+      <li>On that SportyBet tab, simply click your <b>CodeMatch</b> bookmark.</li>
+      <li>A small dark box appears in the bottom corner showing the fetch progress.</li>
+      <li>Once it says <i>"Done"</i>, return to CodeMatch and your data is waiting for you!</li>
+    </ol>
+  </div>
+</div>
+<p class="muted small"><b>Privacy &amp; Security:</b> The bookmark only communicates directly with your own CodeMatch server using a private one-way key. It never sees your password, credit card, or account balance.</p>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 2. HUNT ─── #}
+<h2 id="hunt">2. The Hunt — Finding True Value</h2>
+
+<h3>Why Singles Beat Accumulators (The Maths)</h3>
+<p class="muted">Every leg you add to an accumulator multiplies the bookmaker's house cut against you.
+A single bet with a 5% margin returns <b>0.95 per 1</b> staked. Combine 10 of those same "safe" legs into a parlay and your expected return drops to:
+<br><code>0.95 × 0.95 × 0.95 ... = 0.95¹⁰ = 0.60 per 1</code> — a guaranteed 40% loss to the house over time.
+Professional syndicates and sharp bettors almost exclusively bet <b>singles</b> on low-margin markets. This is not a strategy; it is arithmetic.</p>
+
+<h3>Value Singles Scanner (<code>Hunt → Value Singles</code>)</h3>
+<p class="muted">The scanner analyzes all saved fixtures to isolate selections where SportyBet keeps the absolute smallest margin (typically under 5%, returning 0.95+ per 1 staked).</p>
+<ul class="plain">
+  <li><b>Focus Market chips</b> — filter to Handicap, Corners, Bookings, Half-Time, GG/NG, Double Chance, Totals, or Stats picks only.</li>
+  <li><b>Min Return (Back per 1)</b> — set e.g. 0.95 to only show picks where SportyBet keeps under 5%.</li>
+  <li><b>Tick picks → "Make booking code"</b> — sends selected picks straight to SportyBet and creates codes instantly.</li>
+</ul>
+
+<h3>Where SportyBet Keeps Least (<code>Hunt → Where Sportybet keeps least</code>)</h3>
+<p class="muted">Shows the average house margin per market type (Goals, Corners, Bookings, Handicap, etc.) and by league. Use this to understand <i>which market categories</i> are cheapest on SportyBet before you pick selections. The <b>Build Slip from Lowest-Margin Markets</b> card automatically assembles a code from picks in markets below 10% margin at a target odds you set.</p>
+
+<h3>One Pick Per Game (<code>Hunt → Leagues → One pick per game</code>)</h3>
+<p class="muted">Builds an optimized accumulator using exactly one selection per fixture across the leagues and dates you choose. Set a <b>Target Odds</b> (e.g. 3.00) and it finds the combination of picks that hits those odds while having the highest possible mathematical chance of winning — never guessed.</p>
+
+<h3>Choose the Bet, Find the Teams (<code>Hunt → Leagues → Choose the bet, find the teams</code>)</h3>
+<p class="muted">The reverse approach: you pick the market type first (e.g. "Handicap" or "Corners Over 9"), and it shows you every team where that bet is available. Useful when you already know what kind of bet you want but not which game to apply it to.</p>
+
+<h3>Odds Steam &amp; Line Movement Tracker (<code>Games → Odds Steam</code>)</h3>
+<p class="muted">Odds do not move randomly — they move because high-volume betting syndicates are placing large sums of money.
+When odds drop rapidly (e.g. 2.10 → 1.85), that is called <b>Odds Steam</b>. The market is correcting because sharp money identified value. The Steam Tracker shows you exactly which selections have moved, by how much, and in which direction (Steam = dropping, Drift = rising). Re-fetching leagues regularly gives you more data points to compare.</p>
+
+<h3>Odds Zones</h3>
+<p class="muted">Picks are categorized by their odds range so you understand their probability profile:</p>
+<ul class="plain">
+  <li><b>Very Short (&lt; 1.10):</b> Near-certain in bookmaker's view, but yields almost zero return while still carrying tail risk.</li>
+  <li><b>Lower Risk (1.10 – 1.49):</b> Double chances, heavy home favorites, over 1.5 goals.</li>
+  <li><b>Medium (1.50 – 1.99):</b> Even-match outcomes, Both Teams to Score, Draw No Bet.</li>
+  <li><b>Higher Risk (2.00+):</b> Outright draws, underdog victories, exact scores.</li>
+</ul>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 3. SLIP LAB ─── #}
+<h2 id="sliplab">3. Slip Lab — Auditing &amp; Code Surgeon</h2>
+
+<h3>What is a "Code" in CodeMatch?</h3>
+<p class="muted">A <b>booking code</b> is the alphanumeric string SportyBet generates when you save a slip (e.g. <code>AB12CD</code>). Anyone can load it on SportyBet to place the same bet. CodeMatch stores these codes and calculates the true mathematical profile behind each one.</p>
+
+<h3>How to Get Codes Into CodeMatch</h3>
+<ul class="plain">
+  <li><b>Code Hub</b> — fetches trending public codes from SportyBet's own Code Hub feed. Tap the "Fetch Code Hub" button on the Slip Lab page, click CodeMatch in your bookmarks bar, and all current codes appear automatically.</li>
+  <li><b>Paste your own</b> — type or paste any booking code into the "Paste a code" box on the Slip Lab page. It fetches the legs from SportyBet and audits them instantly.</li>
+  <li><b>Built by CodeMatch</b> — codes created using the "Make booking code" buttons across Hunt / Leagues are automatically saved here with their full audit.</li>
+</ul>
+
+<h3>The Chance Hero &amp; Dot Grid</h3>
+<p class="muted">When reviewing any code, the top hero displays the true joint probability as <b>"1 in N"</b> (e.g., <i>1 in 315</i>) alongside a visual grid of 100 or 1,000 dots. Only the green dots represent wins. Seeing 3 green dots out of 1,000 immediately conveys the true difficulty of a 15-leg accumulator that "looks safe".</p>
+
+<h3>Accumulator Toxicity Grade (A through F)</h3>
+<p class="muted">Every code is assigned a Toxicity Grade based on the compounded margin SportyBet takes:</p>
+<ul class="plain">
+  <li><b>Grade A (&gt;0.90 return):</b> Low drag. Bookmaker takes &lt;10% of total stake.</li>
+  <li><b>Grade B (0.80 – 0.90 return):</b> Moderate drag. Typical for 2–3 sharp legs.</li>
+  <li><b>Grade C (0.65 – 0.80 return):</b> High drag. Bookmaker takes 20%–35%.</li>
+  <li><b>Grade D (0.45 – 0.65 return):</b> Severe drag. House margin consumes up to 55%.</li>
+  <li><b>Grade F (&lt;0.45 return):</b> Toxic. SportyBet takes &gt;55% of your stake before the matches even start!</li>
+</ul>
+
+<h3>Code Surgeon &amp; Batch Audit</h3>
+<p class="muted">Code Surgeon scans accumulators and identifies individual "toxic legs" that carry excessive house margin (&gt;9% cut on that single market). It offers two operating modes:</p>
+<ul class="plain">
+  <li><b>Single Code Surgery (<code>Slip Lab → Review Code</code>):</b> Highlights toxic legs in that specific slip, proposes lower-margin alternatives (e.g. Draw No Bet instead of risky 1X2 outcomes), and recalculates odds and joint probability side-by-side.</li>
+  <li><b>Batch Code Surgeon (<code>Slip Lab → Batch Code Surgeon</code>):</b> Audits <i>all</i> saved codes simultaneously across your entire database without clicking on individual fixtures. It surfaces every code with Grade C, D, or F toxicity, isolates every toxic leg across the board, and lets you generate surgical replacement booking codes in a single click.</li>
+</ul>
+
+<h3>Custom Parlay Generation Algorithms</h3>
+<p class="muted">CodeMatch includes four mathematical generation algorithms for structuring accumulators with positive mathematical rigor rather than guess-work:</p>
+<ul class="plain">
+  <li><b>Max Chance (Greedy Joint Probability):</b> Solves a multi-fixture knapsack to maximize \(\prod P_i\) while hitting your target total odds. It greedily selects the highest-probability outcomes from independent fixtures.</li>
+  <li><b>Min Toxicity (Compounded Margin Minimizer):</b> Minimizes the compounded bookmaker house edge \(\prod (1 - m_i)\). Ensures SportyBet's extraction is strictly bounded (often sub-10% total drag).</li>
+  <li><b>Fair Value Maximizer:</b> Selects picks with the highest ratio of true implied probability relative to quoted price, maximizing Expected Value (EV).</li>
+  <li><b>Balanced Banker + Value Optimizer:</b> Anchors the parlay with high-probability "bankers" (80%+ chance) and completes the target odds with lowest-margin secondary value legs.</li>
+</ul>
+
+<h3>Code Hub — "Best Right Now" &amp; Shared Fixtures</h3>
+<p class="muted">The <b>Best Right Now</b> panel ranks all open codes that haven't started yet by their Back per 1 (highest return first). The <b>Built from fixtures they share</b> panel finds games that appear in multiple popular codes and builds a code from just those shared fixtures at a target odds — useful for seeing what the market is collectively backing.</p>
+
+<h3>Fixtures Across Codes (<code>Slip Lab → Fixtures across codes</code>)</h3>
+<p class="muted">Shows every match that appears in 2+ of your saved codes side-by-side. If 5 different Code Hub codes all pick "Home Win" on the same game, that's a signal worth investigating. Buttons let you tick the safest, most popular, or common-ground pick on each fixture and generate a new code.</p>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 4. RESULTS ─── #}
+<h2 id="results">4. Results Settlement — Finished Matches &amp; Predictions vs. Reality</h2>
+
+<h3>Pulling Results for Finished Matches</h3>
+<p class="muted">When matches have concluded or odds are no longer live, CodeMatch allows you to pull final scores directly using the CodeMatch bookmark button. Whether an event was imported as part of a booking code or from a league scan, CodeMatch tracks its kickoff time:</p>
+<ul class="plain">
+  <li><b>Automatic Detection:</b> Any match with kickoff &gt; 2.5 hours ago lacking a scoreline is automatically flagged on the <b>Games</b> and <b>Results</b> pages.</li>
+  <li><b>One-Click Fetch:</b> Pressing <b>"Fetch final scores with CodeMatch button"</b> sends a fetch request to SportyBet to retrieve the actual full-time and half-time scorelines.</li>
+  <li><b>Direct Game Inspector:</b> Visiting any individual match page (<code>/game/&lt;event_id&gt;</code>) displays a prominent <b>🏁 Final Score</b> banner once settled, along with outcome pills (<code>✓ Won</code> / <code>✗ Lost</code> / <code>Void</code>) on every market option available for that fixture.</li>
+</ul>
+
+<h3>Automated Settlement Logic Across Market Families</h3>
+<p class="muted">CodeMatch evaluates final scorelines using deterministic mathematical parsers across all standard football market families:</p>
+<ul class="plain">
+  <li><b>1X2 &amp; Match Result:</b> Evaluates home goals vs. away goals (Home Win, Draw, Away Win).</li>
+  <li><b>Totals &amp; Over/Under:</b> Evaluates total match goals against lines (Over 0.5, 1.5, 2.5, 3.5, 4.5, Under lines).</li>
+  <li><b>Both Teams to Score (GG / NG):</b> Settle <code>GG</code> if both home &gt; 0 and away &gt; 0; settle <code>NG</code> if either team is held to nil.</li>
+  <li><b>Double Chance:</b> Evaluates compound outcomes (<code>1X</code>, <code>X2</code>, <code>12</code>) against final result.</li>
+  <li><b>Halves &amp; Half-Time:</b> Evaluates HT results and 1st/2nd half totals when half-time score data is present.</li>
+  <li><b>Handicaps &amp; DNB:</b> Applies goal spreads or pushes on exact draws.</li>
+  <li><b>Manual Fallback:</b> Non-score markets (e.g., corners, bookings, player props) can be settled manually in the <b>Legs to mark by hand</b> table with full undo support.</li>
+</ul>
+
+<h3>Predictions vs. Actual Reality Table</h3>
+<p class="muted">On the <b>Results</b> page (<code>/results</code>), CodeMatch provides a side-by-side audit comparing pre-match predictions against real-world match outcomes:</p>
+<div class="scroll"><table class="stack">
+  <tr><th>Fixture &amp; Market</th><th>Pre-Match Prediction</th><th>Stated Probability</th><th>Actual Result</th><th>Settlement</th></tr>
+  <tr><td>Arsenal vs Chelsea &bull; Over 2.5 Goals</td><td>Odds 1.75</td><td>54.2%</td><td>Score 2 - 1 (3 Goals)</td><td><span class="pill good">✓ Won</span></td></tr>
+  <tr><td>Real Madrid vs Sevilla &bull; Home Win</td><td>Odds 1.40</td><td>68.1%</td><td>Score 1 - 1</td><td><span class="pill bad">✗ Lost</span></td></tr>
+</table></div>
+<p class="muted">This comparison feeds directly into your <b>Personal Calibration Engine</b>, allowing you to empirically verify whether SportyBet's stated probabilities are well-calibrated or systematically biased.</p>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 5. TRACK ─── #}
+<h2 id="staking">5. Track — Staking, Bankroll &amp; Longevity</h2>
+
+<h3>Recording a Bet</h3>
+<p class="muted">After placing a code on SportyBet, record it on the Track page (or from the code's review page using the "Record this bet" button). Enter the code and your stake. The app automatically calculates Kelly-recommended stakes once you set your bankroll.</p>
+
+<h3>The Kelly Criterion</h3>
+<p class="muted">The Kelly Criterion is the mathematically proven formula for maximizing long-term bankroll growth while preventing bankruptcy. It sizes your stake proportionally to your perceived edge:
+<br><code>Fraction = (Prob × Odds − 1) / (Odds − 1)</code>
+<br>Because bookmaker odds estimates are imperfect, CodeMatch defaults to <b>Quarter-Kelly (0.25)</b>. Quarter-Kelly drastically reduces volatility and drawdown while capturing ~75% of the theoretical growth rate. Full Kelly grows faster in theory but can wipe out your bankroll on a bad run.</p>
+
+<h3>Setting Your Bankroll &amp; Kelly Fraction</h3>
+<p class="muted">On the Track page, set your <b>total betting bankroll</b> (e.g. ₦5,000). Every Value Singles pick and code review will then show an exact recommended stake. Set your preferred Kelly fraction — Quarter is recommended for most users.</p>
+
+<h3>Monthly Limit</h3>
+<p class="muted">Set a monthly stake cap. The app warns you at 80% and again at 100% — it won't stop you, but the warning is a bankroll discipline tool.</p>
+
+<h3>Account Longevity Shield &amp; Anti-Detection</h3>
+<p class="muted">If you consistently win or bet like an algorithm, bookmaker risk management bots flag and restrict your account. The Longevity Shield protects you in three ways:</p>
+<ul class="plain">
+  <li><b>Anti-Detection Rounded Stakes:</b> Instead of betting algorithmic exact decimals (e.g. ₦14.37), CodeMatch suggests natural recreational numbers (e.g. ₦15.00 or ₦20.00) that don't trigger profiling.</li>
+  <li><b>Market Diversity Warning:</b> Alerts you if more than 60% of your bets concentrate in a single market family. Bookmakers flag single-market specialists.</li>
+  <li><b>Withdrawal Advisor:</b> Recommends skimming profits when total net return surpasses +50% of starting bankroll. Withdrawing resets bookmaker profiling.</li>
+</ul>
+
+<h3>Closing Line Value (CLV)</h3>
+<p class="muted">The closing odds (the odds right at kick-off, after millions in sharp bets have entered the market) represent the most efficient estimate of true probability.
+If you consistently place bets at odds <i>higher</i> than the closing price (<b>CLV &gt; 0%</b>), you possess positive mathematical expected value regardless of individual win/loss variance.
+<br>Formula: <code>CLV % = (Your Placed Odds / Closing Odds − 1) × 100%</code>
+<br>Professional sharp bettors measure their edge entirely through CLV, not win rate. A losing month with positive CLV is still proof of a good process — variance is temporary, edge is structural.</p>
+
+<h3>Personal Calibration Engine</h3>
+<p class="muted">Rather than blindly trusting SportyBet's stated probabilities, the calibration engine tracks your actual settled win rate against SportyBet's stated chances by market family, with a 95% Wilson confidence interval. Each family shows:</p>
+<ul class="plain">
+  <li><b>Your win rate</b> vs. <b>SportyBet's stated chance</b> for that market</li>
+  <li><b>Edge vs SB</b> — positive means you're winning more than their pricing predicts in this market</li>
+  <li><b>95% CI</b> — the confidence interval; narrow = reliable signal, wide = need more data</li>
+  <li><b>Status pill</b>: <span class="pill good">Beat Bookmaker</span> (significant positive edge), <span class="pill bad">Underperforming</span>, <span class="pill">Tracking Stated</span>, or <span class="pill muted">Sample &lt; 50</span></li>
+</ul>
+<p class="muted">Calibration becomes meaningful after ~50 settled legs per market family. With 200+ legs it is statistically robust.</p>
+
+<h3>Did SportyBet's Chances Come True? (Calibration Table)</h3>
+<p class="muted">Every settled leg in your saved codes grouped into chance buckets (e.g. 50%–60%). If SportyBet's odds are accurate, your actual win rate in each bucket should land inside the "Expected Range." Consistent deviation above the range in a bucket means you are finding value in that probability zone.</p>
+
+<h3>Legs to Mark by Hand</h3>
+<p class="muted">Goals settle automatically when a final score is imported. <b>Bookings, Corners, Player Props, Goalkeeper saves</b> and other non-score markets cannot be settled from the final score — they appear in "Legs to mark by hand." Click <b>Won</b> / <b>Lost</b> / <b>Void</b> to settle them. Marked one wrong? Open the code's review and press <b>Undo</b> next to that leg.</p>
+
+<h3>Code Hub Track Record</h3>
+<p class="muted">Tracks every Code Hub code that has finished — played or not — as if 1 unit was staked on each. This tells you whether popular public codes perform better than SportyBet's own stated probabilities predict. If popular codes had inside knowledge, their wins would consistently exceed the expected range.</p>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 6. MARKETS ─── #}
+<h2 id="markets">6. Market Families Explained</h2>
+<p class="muted">CodeMatch classifies every market into a family so you can filter, compare margins, and track calibration by type. Here's what each family covers:</p>
+<div class="scroll"><table class="stack">
+  <tr><th>Family</th><th>What it covers</th><th>Examples</th></tr>
+  <tr><td><b>1X2 &amp; Match Result</b></td><td>Who wins the match outright</td><td>Home Win, Away Win, Draw</td></tr>
+  <tr><td><b>Totals &amp; Over/Under</b></td><td>Total goals (or stats) over or under a threshold</td><td>Over 2.5 Goals, Under 1.5, Over 3.5</td></tr>
+  <tr><td><b>GG / NG (Both Teams to Score)</b></td><td>Whether both teams score (GG) or one/neither does (NG)</td><td>BTTS Yes, BTTS No, GG, NG</td></tr>
+  <tr><td><b>Handicap</b></td><td>One team given a goal head-start to level the field</td><td>Asian Handicap −1, European Handicap +1, DNB</td></tr>
+  <tr><td><b>Double Chance &amp; Draw No Bet</b></td><td>Covers two of three outcomes; refunds on draw</td><td>1X, X2, 12, Draw No Bet, Asian Handicap 0</td></tr>
+  <tr><td><b>Correct Score</b></td><td>Exact final scoreline</td><td>1-0, 2-1, 0-0, 2-2</td></tr>
+  <tr><td><b>Half-Time &amp; Halves</b></td><td>Results or totals restricted to one half</td><td>HT Result, 1st Half Over 0.5, 2nd Half GG</td></tr>
+  <tr><td><b>Clean Sheet / Win to Nil</b></td><td>A team concedes zero goals</td><td>Home Clean Sheet Yes, Away Win to Nil</td></tr>
+  <tr><td><b>Corners</b></td><td>Total or team corner kicks</td><td>Over 9.5 Corners, Team Corners Over 4.5</td></tr>
+  <tr><td><b>Bookings &amp; Cards</b></td><td>Total yellow/red cards; a player being carded</td><td>Over 3.5 Cards, Home Team Cards Over 1.5, Player Booked</td></tr>
+  <tr><td><b>Player Props (Goalscorer / Shots)</b></td><td>Individual player outcomes: goals, assists, shots</td><td>Anytime Goalscorer, First Goalscorer, Player Shots Over 2.5</td></tr>
+  <tr><td><b>Goalkeeper &amp; Saves</b></td><td>Goalkeeper-specific markets</td><td>GK Saves Over 3.5, Goalkeeper Not to Concede, GK to Score</td></tr>
+  <tr><td><b>Match Stats</b></td><td>Other statistical markets</td><td>Offsides Over/Under, Throw-ins, Fouls Over/Under</td></tr>
+  <tr><td><b>Combos &amp; Multi-Picks</b></td><td>Combined outcome markets</td><td>Both teams score &amp; Over 2.5, Win &amp; BTTS, Score-cast</td></tr>
+</table></div>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 7. GLOSSARY ─── #}
+<h2 id="glossary">7. Complete Metric Glossary</h2>
+<div class="scroll"><table class="stack">
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td><b>Back per 1 (Expected Return)</b></td><td>How much money comes back on average per 1 unit staked. <code>0.95</code> = 95 kobo back per ₦1 (5% house edge). A return above <code>1.00</code> would mean positive expected value — extremely rare and usually a temporary pricing error.</td></tr>
+  <tr><td><b>House Margin / Overround</b></td><td>The cut the bookmaker takes. Calculated as <code>(1.0 − Return per 1) × 100%</code>. A 5% margin means SportyBet keeps 5 kobo of every naira wagered, on average, in this market.</td></tr>
+  <tr><td><b>Stated Chance</b></td><td>The true probability SportyBet assigns to an outcome, extracted from the odds after the margin is removed. If the odds are 2.00 and margin is 5%, the stated chance is roughly 47.6% (not 50%).</td></tr>
+  <tr><td><b>Fair Odds</b></td><td>What the odds would be with zero margin: <code>1.0 / Stated Chance</code>. If stated chance is 50%, fair odds = 2.00. If SportyBet offers only 1.90, they are pricing in margin.</td></tr>
+  <tr><td><b>Market Margin (mkt_kept)</b></td><td>The average margin across all selections in that market for that specific game. A 4% market margin means SportyBet keeps 4% from that market's total action on that game.</td></tr>
+  <tr><td><b>Joint Probability</b></td><td>The combined chance all legs in a code win simultaneously: <code>P1 × P2 × ... × Pn</code>. The more legs, the lower this gets. A 10-leg code at 70% each has joint probability <code>0.70¹⁰ = 2.8%</code>.</td></tr>
+  <tr><td><b>Toxicity Grade (A–F)</b></td><td>Overall rating of how much margin a code carries in total. Grade A = code gives back &gt;90% of stake. Grade F = SportyBet keeps &gt;55%. Reflects the compounded margin of all legs together.</td></tr>
+  <tr><td><b>Toxic Leg</b></td><td>A single selection in a code where SportyBet keeps &gt;9% margin on that market. Code Surgeon highlights these for removal or replacement.</td></tr>
+  <tr><td><b>Push / Refund</b></td><td>Selections like Draw No Bet or Over 2.0 goals that refund your stake if a specific result occurs. The chance shown is of <i>winning outright</i> — not the refund case.</td></tr>
+  <tr><td><b>Odds Zone</b></td><td>Broad category for the odds level: Very Short (&lt;1.10), Lower Risk (1.10–1.49), Medium (1.50–1.99), Higher Risk (2.00+). Used for filtering and the margins table.</td></tr>
+  <tr><td><b>Steam</b></td><td>Rapid shortening (dropping) of odds driven by sharp high-volume syndicate wagering. Indicates smart money backing that side.</td></tr>
+  <tr><td><b>Drift</b></td><td>Lengthening (rising) of odds — money is backing the other side, or team news has weakened confidence in this outcome.</td></tr>
+  <tr><td><b>CLV % (Closing Line Value)</b></td><td><code>(Placed Odds / Closing Odds − 1) × 100%</code>. If you bet at 2.10 and the game closes at 1.90, your CLV is +10.5%. Positive CLV is the statistical hallmark of winning bettors. It proves edge independent of short-term luck.</td></tr>
+  <tr><td><b>Expected P&amp;L</b></td><td>What your bets should return mathematically, based on CLV. Diverges from Realized P&amp;L in the short run; they converge over hundreds of bets.</td></tr>
+  <tr><td><b>Realized P&amp;L</b></td><td>What your bets actually returned — the cash in and out.</td></tr>
+  <tr><td><b>Empirical Edge</b></td><td>Your actual win rate minus SportyBet's stated chance, in percentage points. Positive = you are winning more than their pricing predicts in that market family.</td></tr>
+  <tr><td><b>Wilson CI (95%)</b></td><td>The 95% statistical confidence interval for your actual win rate given your sample size. A CI entirely above SportyBet's stated chance = genuine edge. A wide CI = need more data.</td></tr>
+  <tr><td><b>Kelly Fraction</b></td><td>The fraction of full-Kelly stake you use. Quarter-Kelly (0.25) = 25% of optimal bet size. Drastically reduces ruin risk while keeping ~75% of theoretical growth rate.</td></tr>
+  <tr><td><b>Sample &lt; 50</b></td><td>Fewer than 50 settled legs in that market family — calibration is statistically unreliable. Normal early on; shrinks as more legs settle.</td></tr>
+  <tr><td><b>Tracking Stated</b></td><td>50+ bets settled, win rate aligns with SportyBet's stated chance. No significant edge or underperformance detected yet — expected for most markets.</td></tr>
+  <tr><td><b>Common Ground Pick</b></td><td>A pick on a game that covers (contains or implies) the picks chosen in several other codes. E.g., "Over 1.5 goals" covers both "Home Win" and "Away Win" in many score combinations.</td></tr>
+  <tr><td><b>Code Hub</b></td><td>SportyBet's public feed of trending community booking codes. These are not tips — they are popular user-submitted codes. CodeMatch audits them for toxicity and win probability.</td></tr>
+  <tr><td><b>Target Odds</b></td><td>The minimum total odds you want your code to reach. The optimizer finds the combination of picks that hits this target while maximizing the win probability.</td></tr>
+  <tr><td><b>Stacked picks</b></td><td>The simplest possible code — just the most likely pick on every game. Usually lower odds but higher win chance than the optimized code. Shown for comparison on the Leagues page.</td></tr>
+</table></div>
+
+<hr style="margin: 28px 0; border: 0; border-top: 1px solid var(--rule);">
+
+{# ─── 8. DEPLOY ─── #}
+<h2 id="deploy">8. Deployment — Run CodeMatch on a Server (Cloud Deployment)</h2>
+
+<div class="card" style="margin:16px 0 20px;border-left:4px solid var(--warn)">
+  <b>⚠️ Why Vercel / Netlify / Cloudflare Pages won't work</b>
+  <p class="muted">These platforms are designed for static sites and serverless functions that start fresh on every request. CodeMatch uses a persistent SQLite database (<code>data/codematch.db</code>) that grows with your usage. Serverless environments delete the filesystem after every request — your database would vanish. Vercel also has a 50 MB function size limit; the Python dependencies alone exceed this.</p>
+  <p class="muted"><b>What you need:</b> a platform that runs a persistent process (like a long-running server) and keeps files between requests. All four options below do this.</p>
+</div>
+
+<div class="cards">
+  <div class="card" style="flex:1;min-width:280px">
+    <b>✅ Option A: Render.com (Free tier available)</b>
+    <ol class="steps" style="padding-left:18px;margin-top:8px">
+      <li>Push the project to a free private GitHub repository.</li>
+      <li>Log in to <a href="https://render.com" target="_blank" rel="noopener">render.com</a> → <b>New + → Web Service</b>.</li>
+      <li>Connect your repo. Render reads <code>render.yaml</code> automatically.</li>
+      <li>Add a <b>Persistent Disk</b>: mount path <code>/data</code>, size 1 GB.</li>
+      <li>Set env var <code>CODEMATCH_DATA_DIR=/data</code>.</li>
+      <li>Click <b>Deploy</b>. Live at <code>https://your-name.onrender.com</code>.</li>
+    </ol>
+    <p class="muted small">Free tier sleeps after 15 min of inactivity (cold start ~30s). Paid starter ($7/mo) keeps it always-on.</p>
+  </div>
+  <div class="card" style="flex:1;min-width:280px">
+    <b>✅ Option B: Railway.app (~$2–5/mo)</b>
+    <ol class="steps" style="padding-left:18px;margin-top:8px">
+      <li>Push to GitHub. Sign in at <a href="https://railway.app" target="_blank" rel="noopener">railway.app</a>.</li>
+      <li>New Project → Deploy from GitHub repo.</li>
+      <li>Railway uses the <code>Procfile</code> automatically.</li>
+      <li>Add a Volume, mount at <code>/data</code>.</li>
+      <li>Set env var <code>CODEMATCH_DATA_DIR=/data</code> and <code>CODEMATCH_ALLOWED_HOSTS=*</code>.</li>
+      <li>Your app is live immediately with always-on containers.</li>
+    </ol>
+    <p class="muted small">Railway charges by CPU + RAM usage. A personal CodeMatch instance costs ~$2–$5/month.</p>
+  </div>
+</div>
+<div class="cards" style="margin-top:0">
+  <div class="card" style="flex:1;min-width:280px">
+    <b>✅ Option C: Any Linux VPS (DigitalOcean, Hetzner, etc.)</b>
+    <ol class="steps" style="padding-left:18px;margin-top:8px">
+      <li>SSH into your server. Clone the repo and <code>cd</code> into it.</li>
+      <li>Run: <code>pip install -r requirements.txt</code></li>
+      <li>Start: <code>gunicorn run:app --bind 0.0.0.0:5000 --workers 2 --timeout 120 --daemon</code></li>
+      <li>Point a domain to your server's IP. Done.</li>
+    </ol>
+    <p class="muted small">Hetzner CX11 (€3.29/mo) is more than enough for personal use. Full disk persistence, full control, cheapest option long-term.</p>
+  </div>
+  <div class="card" style="flex:1;min-width:280px">
+    <b>✅ Option D: Local network (share with your phone, free)</b>
+    <ol class="steps" style="padding-left:18px;margin-top:8px">
+      <li>Find your PC's local IP: run <code>ipconfig</code> in Command Prompt → IPv4 Address (e.g. <code>192.168.1.5</code>).</li>
+      <li>Start CodeMatch with <code>CODEMATCH_ALLOWED_HOSTS=* python run.py</code>.</li>
+      <li>On your phone (same Wi-Fi), open <code>http://192.168.1.5:5000</code>.</li>
+      <li>Your phone can now use CodeMatch without installing anything.</li>
+    </ol>
+    <p class="muted small">Requires your PC to stay on. Free. No data leaves your home network. Good for testing before cloud deploy.</p>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">Environment Variables Reference</h3>
+<div class="scroll"><table>
+  <tr><th>Variable</th><th>Purpose</th><th>Default</th></tr>
+  <tr><td><code>CODEMATCH_ALLOWED_HOSTS</code></td><td>Comma-separated hostnames allowed to access the app. Set to <code>*</code> for any host, or your domain e.g. <code>myapp.onrender.com</code>.</td><td><code>127.0.0.1,localhost</code></td></tr>
+  <tr><td><code>CODEMATCH_DATA_DIR</code></td><td>Where the SQLite database is stored. Set to your persistent volume path on cloud platforms.</td><td><code>data/</code> folder inside the project</td></tr>
+  <tr><td><code>SECRET_KEY</code></td><td>Flask session secret. Auto-generated if not set, but set a fixed value on cloud so sessions survive restarts.</td><td>auto-generated</td></tr>
+  <tr><td><code>PORT</code></td><td>Port for gunicorn to bind to. Set automatically by most cloud platforms.</td><td><code>5000</code></td></tr>
+</table></div>
+
+<p class="muted" style="margin-top:16px"><b>Important after deploying:</b> The CodeMatch bookmark button in your browser must point to your deployed URL (not <code>localhost</code>). After deploying, re-drag the bookmark from the <a href="{{ url_for('imports.index') }}#button">Sync / Import page</a> of your cloud-hosted instance to update it.</p>
+
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ name }} · CodeMatch{% endblock %}
+{% block body %}
+<a class="back" href="{{ url_for('leagues.index') }}">&larr; Leagues</a>
+<h1>{{ name }}</h1>
+{% if games %}
+<p class="muted">{{ games|length }} games imported, {{ n_upcoming }} not yet started. Latest import {{ saved|ago }};
+odds move, so refresh close to kick-off.
+<a href="{{ url_for('leagues.index', tid=tid) }}">Review picks for this league</a></p>
+{% else %}
+<p>This league isn't imported yet.</p>
+{% endif %}
+{{ m.snippet(league_snippet, "Refresh this league (goals, bookings and corners)", open=not games) }}
+{% if games_snippet %}{{ m.snippet(games_snippet, "Fetch every market for the " ~ n_partial ~ " upcoming games that only have league markets",
+   note="One game every 1.5 seconds, about " ~ (n_partial * 1.5)|round|int ~ " seconds in all. The file can be tens of MB; upload it as a file.") }}{% endif %}
+
+{% if games %}
+<h2>Games</h2>
+<div class="scroll"><table>
+<tr><th>Kick-off<th>Game<th class="num">1<th class="num">X<th class="num">2<th class="num">Over 2.5<th class="num">Under 2.5<th class="num">BTTS<th>Markets</tr>
+{% for g in games %}<tr class="{{ 'past' if (g.start_ms or 0) < now_ms() }}">
+<td>{{ g.start_ms|kickoff }}
+<td><a href="{{ url_for('games.game', event_id=g.event_id) }}">{{ g.home }} v {{ g.away }}</a>
+<td class="num">{{ g.h or '-' }}<td class="num">{{ g.d or '-' }}<td class="num">{{ g.a or '-' }}<td class="num">{{ g.o25 or '-' }}<td class="num">{{ g.u25 or '-' }}<td class="num">{{ g.btts or '-' }}
+<td class="muted">{{ g.n_markets }}{% if g.fams.bookings %}, bookings{% endif %}{% if g.fams.corners %}, corners{% endif %}</tr>{% endfor %}
+</table></div>
+<p class="muted">Greyed rows have kicked off.</p>
+{% endif %}
+{% if games %}
+<form method="post" action="{{ url_for('leagues.delete') }}" onsubmit="return confirm('Delete {{ name }} and its {{ games|length }} games? Codes keep their legs; you can fetch the league again any time.')">
+  <input type="hidden" name="tid" value="{{ tid }}"><button class="link">Delete this league and its games</button></form>
+{% endif %}
+{% endblock %}

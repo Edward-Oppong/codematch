@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Fetch leagues · CodeMatch{% endblock %}
+{% block body %}
+<a class="back" href="{{ url_for('leagues.index') }}">&larr; Leagues</a>
+<h1>Fetch {{ leagues|length }} league{{ 's' if leagues|length != 1 }}</h1>
+{% if snippet %}
+<p>{% for tid, name in leagues %}<span class="pill">{{ name }}</span> {% endfor %}</p>
+{{ m.snippet(snippet, "Fetch these leagues", open=True,
+   note="It asks for one league every 1.5 seconds, so " ~ leagues|length ~ " leagues take about " ~ ((leagues|length - 1) * 1.5)|round|int ~ " seconds.") }}
+<p class="muted">This brings each game's main goal markets plus bookings and corners. For every market of a game
+(correct score, combos, handicaps...), use "Fetch every market" on the league's page afterwards.</p>
+{% else %}<p>No leagues ticked. <a href="{{ url_for('leagues.index') }}">Go back</a> and tick some.</p>{% endif %}
+{% endblock %}

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ code }} · CodeMatch{% endblock %}
+{% block body %}
+<a class="back" href="{{ url_for('codes.index') }}">&larr; Codes</a>
+<h1>{{ code }}</h1>
+<p class="lede">{{ s.n_legs }} leg{{ 's' if s.n_legs != 1 }} on {{ s.n_games }} game{{ 's' if s.n_games != 1 }}, kicking off
+{{ s.first|kickoff }}{% if s.last and s.last != s.first %} to {{ s.last|kickoff }}{% endif %}.</p>
+{{ m.flow_tracker(2) }}
+
+{% if outcome %}<p class="msg {{ 'bad' if outcome.code == 'lost' else ('ok' if outcome.code == 'won' else '') }}">
+  {% if outcome.code == 'lost' %}This code has lost.{% elif outcome.code == 'won' %}This code has won.{% else %}Running.{% endif %}
+  {{ outcome.won }} leg{{ 's' if outcome.won != 1 }} won, {{ outcome.lost }} lost{% if outcome.void %}, {{ outcome.void }} void{% endif %}{% if outcome.open %}, {{ outcome.open }} still to settle{% endif %}.</p>{% endif %}
+
+<section class="hero" aria-label="How likely this code is to win">
+  <div>
+    <p class="odds-in">{{ s.joint_prob|one_in if s.joint_prob is not none else '?' }}</p>
+    <p class="caption">{% if s.joint_prob is none %}Chance unknown: some legs have no probability yet.
+      {% else %}chance this code wins{% if s.joint_prob >= 0.5 %}{% elif s.joint_prob > 0 %} ({{ s.joint_prob|pct(2) }}){% endif %}{% endif %}</p>
+  </div>
+  <div>{{ m.chance_dots(s.joint_prob) }}</div>
+  <div class="figures">
+    {{ m.figure("Total odds", '%.2f'|format(s.total_odds)) }}
+    {% if s.exp_return is not none %}{{ m.figure("Back on average per 1 staked", '%.2f'|format(s.exp_return),
+         cls='warn' if s.exp_return < 0.9 else '') }}
+    {{ m.figure("SportyBet keeps", '%.0f%%'|format((1 - s.exp_return) * 100)) }}
+    {{ m.figure("Acca Toxicity", s.toxicity_grade,
+         cls='good' if s.toxicity_grade in ('A', 'B') else ('warn' if s.toxicity_grade == 'C' else 'bad')) }}{% endif %}
+    {% if s.fair_odds and not s.n_refund %}{{ m.figure("Fair odds would be", '%.1f'|format(s.fair_odds)) }}{% endif %}
+  </div>
+</section>
+
+{% if s.toxicity_grade in ('D', 'F') %}
+<div class="msg bad" style="margin-top:12px">
+  <b>High Compounded Margin Warning (Grade {{ s.toxicity_grade }}):</b>
+  SportyBet takes an estimated <b>{{ '%.0f%%'|format(s.toxicity_margin_pct) }}</b> cut across these combined selections.
+  To break even long-term, your selections must outperform the bookmaker's pricing by at least <b>+{{ '%.0f%%'|format(s.breakeven_beat_pct) }}%</b>.
+  {% if s.toxic_legs %}
+  <br><small><b>Code Surgeon:</b> {{ s.toxic_legs|length }} leg{{ 's' if s.toxic_legs|length != 1 }} have exceptionally high individual bookmaker margin (&gt;9%). Use "Raise the chance" below or trim low-efficiency legs.</small>
+  {% endif %}
+</div>
+{% endif %}
+<p class="muted">Chances are SportyBet's own for each leg, multiplied across games. Odds are as captured when the code
+was imported.
+{% if s.n_refund %}{{ s.n_refund }} leg{{ 's' if s.n_refund != 1 }} can refund the stake (draw no bet, whole-number lines):
+the chance counts only an outright win, and the return includes the refunds.{% endif %}
+{% if s.same_game %}{{ s.same_game|length }} game{{ 's' if s.same_game|length != 1 }} carr{{ 'ies' if s.same_game|length == 1 else 'y' }}
+more than one leg; those legs depend on the same result, so their joint chance is worked out together{% if s.same_game_estimates %}
+({{ s.same_game_estimates }} only as an estimate, so treat the chance as approximate){% endif %}.{% endif %}</p>
+{% if s.same_game_conflicts %}<p class="msg bad">{{ s.same_game_conflicts }} game{{ 's' if s.same_game_conflicts != 1 }} in this code
+{{ 'has' if s.same_game_conflicts == 1 else 'have' }} legs that contradict each other, so the code cannot win.</p>{% endif %}
+{% if unresolved %}<p class="msg bad">{{ unresolved }} refund leg{{ 's' if unresolved != 1 }} without the game imported: SportyBet's
+figure for those is the chance of winning if there's no refund, so the chance above is too high until the game is imported.</p>{% endif %}
+
+<h2>Raise the chance</h2>
+<p class="muted">Fewer legs is the biggest lever. Swapping a leg for a safer pick on the same game helps less and costs odds.</p>
+<form method="get" class="card filters">
+  <div class="row">
+    <label>Keep the <input name="keep" value="{{ keep }}" size="3" placeholder="all" inputmode="numeric"> most likely legs</label>
+    <label><input type="checkbox" name="swap" value="1" {{ 'checked' if swap }}> Swap legs for safer picks</label>
+    <label>paying at least <input name="mino" value="{{ '%g'|format(min_odds) }}" size="4" inputmode="decimal"></label>
+    <button>Show the result</button>
+  </div>
+  {% if n_with_data < s.n_legs %}<p class="muted">Swapping needs each game's odds; {{ s.n_legs - n_with_data }} of
+  {{ s.n_legs }} legs don't have them yet.</p>{% endif %}
+</form>
+{% if better %}
+<div class="figures">
+  {{ m.figure("Legs", s.n_legs ~ " → " ~ better.s.n_legs) }}
+  {{ m.figure("Chance of winning", (s.joint_prob|pct(2) if s.joint_prob is not none else '-') ~ " → " ~
+              (better.s.joint_prob|pct(2) if better.s.joint_prob is not none else '-')) }}
+  {{ m.figure("Total odds", '%.2f'|format(s.total_odds) ~ " → " ~ '%.2f'|format(better.s.total_odds)) }}
+  {{ m.figure("Back per 1 staked", ('%.2f'|format(s.exp_return) if s.exp_return is not none else '-') ~ " → " ~
+              ('%.2f'|format(better.s.exp_return) if better.s.exp_return is not none else '-')) }}
+</div>
+{% if better.n_swapped %}
+<div class="scroll"><table class="stack"><tr><th>Game<th>Instead of<th>Play<th class="num">Odds<th class="num">Chance</tr>
+{% for l in better.legs if l.changed %}<tr><td>{{ l.match }}<td data-label="Instead of" class="muted">{{ l.was }}
+<td data-label="Play"><b>{{ l.label }}</b><td data-label="Odds" class="num">{{ l.odds }}<td data-label="Chance" class="num">{{ l.prob|pct }}</tr>{% endfor %}</table></div>
+{% endif %}
+<form method="post" onsubmit="return false" class="fetch">
+  {% for l in better.legs %}<input type="hidden" name="sel" value='{{ {"eventId": l.event_id, "marketId": l.market_id, "specifier": l.specifier, "outcomeId": l.outcome_id}|tojson }}'>{% endfor %}
+  <button type="button" data-cm-queue="{{ url_for('codes.make') }}">Make a SportyBet booking code from this version</button>
+  <span class="cm-status muted" aria-live="polite">It fetches each game again to check the odds, then makes the code; you check it and decide on SportyBet.</span>
+</form>
+<p class="muted">{{ better.n_swapped }} leg{{ 's' if better.n_swapped != 1 }} swapped{% if keep %}, {{ better.s.n_legs }} kept{% endif %}.
+A swapped pick does at least as well as the original in every result, so the chance can only go up and the odds go down.</p>
+{% endif %}
+
+<h3>Same odds, higher chance</h3>
+<p class="muted">The set of picks on this code's games that reaches the odds you ask for and wins most often.</p>
+<details class="explain"><summary>How this works</summary>
+<p class="muted">At the same total odds, a code's chance depends only on how much of the bookmaker's margin its legs pile
+up. This looks at every pick on this code's games (in the same markets) and finds the set that reaches the odds you ask
+for and wins most often, at most one pick per game. Without a minimum it may lean on one longer-priced pick, because
+one pick carries less margin than several; set a minimum chance per leg if you'd rather every leg be likely on its own.</p></details>
+<form method="get" class="card filters"><div class="row">
+  <label>Total odds at least <input name="todds" value="{{ '%g'|format(reach.goal) if reach else '%.2f'|format(s.total_odds) }}" size="6" inputmode="decimal"></label>
+  <label>each leg at least <input name="minp" value="{{ '%g'|format(reach.minp * 100) if reach and reach.minp else '' }}" size="3" placeholder="any" inputmode="decimal">% chance</label>
+  <button>Find the highest chance</button></div>
+</form>
+{% if reach %}
+{% if reach.legs %}
+<div class="figures">
+  {{ m.figure("Legs", s.n_legs ~ " → " ~ reach.t.n) }}
+  {{ m.figure("Chance of winning", (s.joint_prob|pct(2) if s.joint_prob is not none else '-') ~ " → " ~ reach.t.prob|pct(2)) }}
+  {{ m.figure("Total odds", '%.2f'|format(s.total_odds) ~ " → " ~ '%.2f'|format(reach.t.odds)) }}
+  {{ m.figure("Back per 1 staked", ('%.2f'|format(s.exp_return) if s.exp_return is not none else '-') ~ " → " ~ '%.2f'|format(reach.t.ret)) }}
+</div>
+<form method="post" onsubmit="return false">
+<div class="scroll"><table class="stack"><tr><th>Game<th>Pick<th class="num">Odds<th class="num">Chance<th class="num">Back per 1</tr>
+{% for l in reach.legs %}<tr><td>{{ l.match }}<td data-label="Pick">{{ l.label }} {{ m.zone_badge(l.zone, zone_label) }}{% if l.own %} <span class="muted">in the code already</span>{% endif %}
+<td data-label="Odds" class="num">{{ '%.2f'|format(l.odds) }}<td data-label="Chance" class="num">{{ l.prob|pct(1) }}<td data-label="Back per 1" class="num">{{ m.ret(l.ret) }}
+{% if l.sel %}<input type="hidden" name="sel" value='{{ l.sel|tojson }}'>{% endif %}</tr>{% endfor %}
+</table></div>
+<div class="fetch">
+  <button type="button" data-cm-queue="{{ url_for('codes.make') }}">Make a SportyBet booking code from this version</button>
+  <span class="cm-status muted" aria-live="polite">It fetches each game again to check the odds, then makes the code; you check it and decide on SportyBet.</span>
+</div>
+</form>
+{% if reach.n_priced < reach.n_games %}<p class="muted">{{ reach.n_games - reach.n_priced }} of {{ reach.n_games }} games have no
+imported odds, so only the code's own leg could be used there. Fetch those games (below) for more choice.</p>{% endif %}
+{% else %}<p class="msg">No set of picks on this code's games reaches odds of {{ '%g'|format(reach.goal) }}{% if reach.minp %}
+with every leg at least {{ '%g'|format(reach.minp * 100) }}% likely: the more likely each leg, the less it pays, so lower the minimum or the odds{% endif %}.
+{% if reach.n_priced < reach.n_games %}Some games have no imported odds; fetching them gives more picks to choose from.{% endif %}</p>{% endif %}
+{% endif %}
+
+<form method="post" action="{{ url_for('results.add_bet') }}" class="card filters"><div class="row">
+  <b>Played this code?</b><input type="hidden" name="code" value="{{ code }}">
+  <input type="hidden" name="back" value="{{ url_for('results.index') }}">
+  <label>Stake <input name="stake" size="6" inputmode="decimal"></label><button>Record the bet</button>
+  <span class="muted">It then counts in your <a href="{{ url_for('results.index') }}">results</a>.</span></div>
+{% if bankroll and s.joint_prob and s.total_odds > 1 %}
+{% set edge = (s.joint_prob * s.total_odds) - 1 %}
+{% set kelly_stake = (bankroll * kelly_fraction * (edge / (s.total_odds - 1))) if edge > 0 else (bankroll * 0.01) %}
+<p class="muted"><b>Kelly Stake:</b> {{ '%.2f'|format([kelly_stake, 0]|max) }}
+  <span class="muted">({{ '%.0f%%'|format(kelly_fraction * 100) }} Kelly, bankroll {{ '%g'|format(bankroll) }})</span>
+  {% if kelly_stake > 5 %}
+  <br><small class="muted" title="Anti-detection: Bet whole numbers to blend in with recreational players and avoid algorithmic detection">🛡️ <b>Anti-Detection Rounded:</b> {{ ((kelly_stake)|round|int) }} or {{ (((kelly_stake / 5)|round|int) * 5) }}</small>
+  {% endif %}
+</p>
+{% endif %}
+</form>
+
+<h2>The legs</h2>
+<div class="figures">
+  {% for name, n in s.zones %}{{ m.figure(name, n) }}{% endfor %}
+</div>
+{% if s.weakest %}<p class="muted">Weakest: {% for l in s.weakest[:3] %}{{ l.match }} at {{ l.prob|pct }}{{ ', ' if not loop.last }}{% endfor %}.</p>{% endif %}
+{% if missing %}
+<p class="muted">{{ missing }} of {{ s.n_legs }} legs have no game data to compare against.</p>
+{{ m.snippet(missing_snippet, "Fetch those games (every market)") }}
+{% endif %}
+<div class="scroll"><table class="stack">
+<tr><th>Game<th>Pick<th class="num">Odds<th class="num">Chance<th>Rank in game<th>Safer instead<th>Riskier option</tr>
+{% for r in legs %}<tr>
+<td><a href="{{ url_for('games.game', event_id=r.leg.event_id) }}"><b>{{ r.leg.match }}</b></a><br><span class="muted">{{ r.leg.league|league }}, {{ r.leg.start_ms|kickoff }}</span>
+<td data-label="Pick">{{ r.leg.market }}: <b>{{ r.leg.pick }}</b> {{ m.zone_badge(r.zone, zone_label) }}
+  {% if r.status in ('won', 'lost', 'void') %}<br><span class="{{ 'good' if r.status == 'won' else ('bad' if r.status == 'lost' else 'muted') }}"><b>{{ r.status|capitalize }}</b></span>{% endif %}
+  {% if r.marked or (r.status == 'manual' and r.played) %}
+  <form method="post" action="{{ url_for('results.set_leg') }}" class="leg-mark">
+    <input type="hidden" name="code" value="{{ code }}"><input type="hidden" name="sel_key" value="{{ r.leg.sel_key }}">
+    <input type="hidden" name="back" value="{{ request.full_path }}">
+    {% if r.marked %}<span class="muted">marked by hand</span> <button class="link" name="status" value="">Undo</button>
+    {% else %}<span class="muted">Result?</span>
+      <button class="secondary" name="status" value="won">Won</button><button class="secondary" name="status" value="lost">Lost</button><button class="secondary" name="status" value="void">Void</button>{% endif %}
+  </form>{% elif r.status == 'pending' and r.played %}<br><span class="muted">waiting for the final score</span>{% endif %}
+<td data-label="Odds" class="num">{{ r.leg.odds }}
+<td data-label="Chance" class="num">{{ r.leg.prob|pct if r.leg.prob else '-' }}{% if r.leg.push_prob %}<br><span class="muted">refund {{ r.leg.push_prob|pct }}</span>{% endif %}
+{% if r.ctx.has_data %}
+<td data-label="Rank">{% if r.ctx.rank %}{{ r.ctx.rank }} of {{ r.ctx.n }}{% else %}<span class="muted" title="Paid early if the team leads by {{ r.ctx.info.early }}; compared by the results it surely and possibly wins on">early payout</span>{% endif %}
+<td data-label="Safer">{% for k, v in r.ctx.safer[:2] %}<a href="{{ url_for('games.game', event_id=r.leg.event_id, fam=r.ctx.family, pick=k) }}">{{ k }}</a> at {{ v.odds }} ({{ v.prob|pct }})
+<span class="muted">&minus;{{ '%.2f'|format(r.leg.odds - v.odds) }}</span>{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">none</span>{% endfor %}
+{% if r.ctx.cheap_swap %}<br><span class="good">cheap swap available</span>{% endif %}
+<td data-label="Riskier">{% for k, v in r.ctx.riskier[:2] %}{{ k }} at {{ v.odds }} ({{ v.prob|pct }})
+<span class="muted">+{{ '%.2f'|format(v.odds - r.leg.odds) }}</span>{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">none</span>{% endfor %}
+{% else %}<td colspan="3" class="muted" data-label="Compared">{{ r.ctx.why }}{% endif %}
+</tr>{% endfor %}
+</table></div>
+<details class="explain"><summary>What rank, safer and riskier mean</summary>
+<p class="muted">Rank is by chance among the same kind of picks in that game. A safer pick does at least as well as this
+one in every possible result, for example "Arsenal win either half" instead of "Arsenal win both halves", or draw no bet,
+which refunds on a draw, instead of a straight win. An early-payout pick (1X2 2UP or 1UP) has no rank: it is compared
+by the results it surely wins on (its team wins) and those it may win on (its team scored enough to lead by that many).</p></details>
+<form method="post" action="{{ url_for('codes.delete', code=code) }}" onsubmit="return confirm('Delete {{ code }}?')">
+<button class="link">Delete this code</button></form>
+{% endblock %}
