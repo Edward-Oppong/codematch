@@ -18,6 +18,100 @@ The application never directly scrapes or attacks SportyBet servers. Data ingest
 - **Security:** Strict Host authorization (`ALLOWED_HOSTS`), DNS rebinding mitigation, origin validation, CSRF protections, and sandboxed client-side bridge.
 - **Quality Assurance:** 100% test pass rate across 168 unit and integration tests (`pytest`).
 
+### System Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph Client ["Client Browser Environment"]
+        SB["SportyBet Web Platform"]
+        BM["CodeMatch Bookmarklet (Bridge)"]
+        SB -->|Extract DOM / Live Odds JSON| BM
+    end
+
+    subgraph Security ["Security & Verification Perimeter"]
+        AUTH["Constant-time Token Validator"]
+        REBIND["Host & DNS Rebinding Filter"]
+        BM -->|HTTP POST with Secret Key| AUTH
+        AUTH --> REBIND
+    end
+
+    subgraph Core ["CodeMatch Analytics Platform (Python 3.12 / Flask)"]
+        INGEST["Bridge Ingestion API (/bridge)"]
+        REBIND --> INGEST
+        PARSER["Odds, Margin & Joint Probability Parser"]
+        INGEST --> PARSER
+
+        subgraph Engines ["Algorithmic Decision Engines"]
+            PB["Parlay Suite: Knapsack Optimizer"]
+            SURG["Batch Code Surgeon & Toxicity Grader"]
+            VAL["Value Singles: Quarter-Kelly Staking"]
+            CLV["CLV Tracker & Wilson Calibration"]
+        end
+
+        PARSER --> Engines
+
+        subgraph Storage ["Persistent Data Layer"]
+            DB[("SQLite 3 (WAL Mode, Memory Temp Store)")]
+        end
+
+        Engines <--> DB
+    end
+
+    subgraph UI ["User Interface Layer (Vanilla HTML5 / CSS3)"]
+        DOCK["Sticky Floating Booking Dock"]
+        STEPPER["4-Step Betting Workflow"]
+        QUEUE["1-Click Code Dispatcher"]
+        Engines --> UI
+        QUEUE -.->|Dispatch Optimized Slips| BM
+    end
+```
+
+---
+
+## Visual Design System & Quantitative Cues
+
+CodeMatch relies on strict semantic colors to communicate quantitative reality to the bettor:
+
+### 1. Acca Toxicity Color Matrix
+Visualizes the compounded house cut ($1 - \prod(1 - m_i)$) extracted from accumulator slips:
+
+| Grade | Compounded Margin | Visual Badge | Status Meaning |
+|:---:|:---:|:---:|---|
+| **Grade A** | $< 10\%$ | <kbd style="background:#e4f1e8;color:#276c44;padding:2px 8px;border-radius:12px;font-weight:bold;">Grade A</kbd> | **Elite / Ultra-Low Drag:** Compounded return $>90\%$. Institutional parlay standard. |
+| **Grade B** | $10\% - 20\%$ | <kbd style="background:#eaf5ee;color:#2d8a56;padding:2px 8px;border-radius:12px;font-weight:bold;">Grade B</kbd> | **Moderate Drag:** Typical for 2–3 sharp selections. |
+| **Grade C** | $20\% - 35\%$ | <kbd style="background:#fef7e8;color:#b57a1e;padding:2px 8px;border-radius:12px;font-weight:bold;">Grade C</kbd> | **High Drag:** Compounded house edge eats over a quarter of wager value. |
+| **Grade D** | $35\% - 55\%$ | <kbd style="background:#fbeee9;color:#c24b2b;padding:2px 8px;border-radius:12px;font-weight:bold;">Grade D</kbd> | **Severe Drag:** Bookmaker keeps up to 55% of stake before matches kick off. |
+| **Grade F** | $> 55\%$ | <kbd style="background:#f6e1dd;color:#a33a2b;padding:2px 8px;border-radius:12px;font-weight:bold;">Grade F</kbd> | **Toxic:** House extracts over half the ticket value. Actionable for Code Surgeon. |
+
+### 2. Odds Zones & Risk Spectrum
+Categorizes selections by bookmaker implied probability:
+
+| Zone | Odds Range | Implied Chance | Color Code | Characteristics |
+|---|:---:|:---:|:---:|---|
+| **Very Short** | $< 1.10$ | $> 90.9\%$ | `Slate` | Heavy tail risk with minimal payout yield |
+| **Lower Risk** | $1.10 - 1.49$ | $67.1\% - 90.9\%$ | `Emerald` | Double chance, heavy favorites, Over 1.5 Goals |
+| **Medium** | $1.50 - 1.99$ | $50.3\% - 66.7\%$ | `Ochre` | Even-odds matchups, BTTS Yes/No, Draw No Bet |
+| **Higher Risk** | $\ge 2.00$ | $< 50.0\%$ | `Crimson` | Underdogs, draws, high-variance proposition lines |
+
+### 3. Visual Component Mockups
+
+#### The Chance Hero (Code Audit Interface)
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  1 in 315                            ● ● ○ ○ ○ ○ ○ ○ ○ ○   Total Odds:       18.42     │
+│  chance this code wins (0.32%)       ○ ○ ○ ○ ○ ○ ○ ○ ○ ○   Back per 1:       0.68      │
+│                                      ○ ○ ○ ○ ○ ○ ○ ○ ○ ○   SportyBet keeps:  32%       │
+│                                      ○ ○ ○ ○ ○ ○ ○ ○ ○ ○   Acca Toxicity:    Grade C   │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Sticky Floating Booking Dock
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  📦 4 selections ticked  │  Total Odds: 4.85  │  Chance: 1 in 5 (20.6%)  │  [Make Code ⚡] │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Core Capabilities

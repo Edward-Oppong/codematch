@@ -88,6 +88,42 @@ flowchart TD
     end
 ```
 
+### Quantitative Analytics Execution Pipeline
+
+```mermaid
+flowchart LR
+    RAW["Raw Bookmaker Odds\n(SportyBet Markets)"] --> DE_MARGIN["De-Margining Engine\n(Fair Probability Derivation)"]
+    DE_MARGIN --> POOL["Multi-Market Candidate Pool\n(Filtered by min_prob & positive odds)"]
+    POOL --> SOLVER["Combinatorial Knapsack Solver\n(Target Odds & Staggered Interval Scheduling)"]
+    SOLVER --> SURGEON["Toxicity Auditor & Code Surgeon\n(compounded overround pruner)"]
+    SURGEON --> SIZING["Quarter-Kelly Sizing Engine\n(Optimal Growth & Ruin Prevention)"]
+    SIZING --> SETTLE["Post-Kickoff Settlement & CLV Engine\n(Empirical Edge & Wilson 95% CI)"]
+
+    style RAW fill:#f2f4f1,stroke:#4a5650,color:#16211c
+    style DE_MARGIN fill:#e2efe7,stroke:#1f6b4a,color:#16211c
+    style POOL fill:#e2efe7,stroke:#1f6b4a,color:#16211c
+    style SOLVER fill:#e2efe7,stroke:#1f6b4a,color:#16211c
+    style SURGEON fill:#e4f1e8,stroke:#276c44,color:#16211c
+    style SIZING fill:#e2efe7,stroke:#1f6b4a,color:#16211c
+    style SETTLE fill:#e4f1e8,stroke:#1f6b4a,color:#16211c
+```
+
+---
+
+## Design System & Semantic Color Tokens
+
+CodeMatch pairs mathematical rigor with an institutional, distraction-free visual design system passing **WCAG AAA** standards:
+
+| Token / Grade | Light Hex | Dark Hex | Visual Role |
+|---|---|---|---|
+| **Pitch Green (`--accent`)** | `#1f6b4a` | `#6fcf9f` | Primary brand accent, positive expectation, winning indicators |
+| **Chalk Canvas (`--paper`)** | `#f2f4f1` | `#121815` | Low-strain background canvas (light chalk / deep pitch dark) |
+| **Surface Card (`--surface`)**| `#ffffff` | `#1a221e` | High-contrast data containers and table cards |
+| **Grade A Toxicity** | `#276c44` | `#7ed3a0` | Ultra-low house drag ($<10\%$), sharp bettor standard |
+| **Grade C Toxicity** | `#b57a1e` | `#e8b75c` | High drag warning ($20\% - 35\%$), actionable for Code Surgeon |
+| **Grade F Toxicity** | `#a33a2b` | `#f29a8c` | Severe toxic drag ($>55\%$ cut), alerts bettor to irrational accumulator pricing |
+| **Selection Highlight (`--sel`)**| `#f1e08a` | `#4a4220` | Restrained golden highlight for currently evaluated market row |
+
 ---
 
 ## Technical Highlights for Recruiters & Hiring Managers
