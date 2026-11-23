@@ -150,11 +150,12 @@ def directory_snippet():
 # this computer what to fetch, fetches it with the user's own SportyBet session, and posts each response back.
 # On a match page with nothing queued, it fetches that game. Everything it sends goes to the user's own app.
 BUTTON_VERSION = "3"     # raise when the bookmark's code changes, so the app can ask for a fresh one
-# v3: the app may add requests while the button runs (the games of Code Hub codes, once the list has arrived)
+# v3: guard against clicking bookmark on non-sportybet tabs with direct instructions
 BOOKMARKLET = r"""(async()=>{const A=%(base)s,K=%(key)s,V=%(version)s,d=document,P=1500;
 let b=d.getElementById("cm-box");if(!b){b=d.body.appendChild(d.createElement("div"));b.id="cm-box"}
 b.style.cssText="position:fixed;z-index:2147483647;right:16px;bottom:16px;max-width:380px;padding:12px 16px;border-radius:10px;background:#16211c;color:#f2f4f1;font:14px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35)";
 const say=t=>{b.textContent="CodeMatch: "+t};
+if(!location.hostname.includes("sportybet.com")){say("Please click this bookmark on SportyBet (sportybet.com)! On CodeMatch, click 'Fetch with CodeMatch button' first, which opens SportyBet, then click this bookmark there.");return}
 const f=d.body.appendChild(d.createElement("iframe"));f.style.display="none";
 const F=f.contentWindow.fetch.bind(window),H={clientid:"web",operid:"3",platform:"web"};
 const post=(p,body)=>F(A+p+(p.includes("?")?"&":"?")+"k="+K,{method:"POST",headers:{"content-type":"text/plain"},body});

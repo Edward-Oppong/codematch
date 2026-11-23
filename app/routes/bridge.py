@@ -48,6 +48,21 @@ def cors(resp):
     return resp
 
 
+@bp.errorhandler(403)
+def forbidden(e):
+    return jsonify({"error": "Forbidden: call must originate from sportybet.com with a valid key"}), 403
+
+
+@bp.errorhandler(400)
+def bad_request(e):
+    return jsonify({"error": "Bad request"}), 400
+
+
+@bp.errorhandler(500)
+def server_error(e):
+    return jsonify({"error": "Server error"}), 500
+
+
 def _from_button(con):
     """The call must come from a sportybet.com page and carry the key."""
     if not SPORTYBET.match(request.headers.get("Origin", "")):
