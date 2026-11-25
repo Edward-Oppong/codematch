@@ -14,41 +14,157 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-<header class="top"><div class="top-in">
-  <a class="brand" href="{{ url_for('codes.index') }}">Code<span>Match</span></a>
-  <nav aria-label="Sections">
-    {% set ep = request.endpoint or '' %}
-    {% for name, endpoint, prefix in [('Hunt', 'leagues.singles', 'leagues.'), ('Slip Lab', 'codes.index', 'codes.'), ('Games', 'games.index', 'games.'), ('Track', 'results.index', 'results.'), ('Guide', 'codes.guide', 'codes.guide'), ('Sync', 'imports.index', 'imports.')] %}
-    <a href="{{ url_for(endpoint) }}"{% if ep.startswith(prefix) %} class="on" aria-current="page"{% endif %}>{{ name }}</a>
-    {% endfor %}
-  </nav>
-  <button type="button" class="theme" id="theme" title="Theme: follow device" aria-label="Change theme">◐</button>
-</div></header>
-<main>
-{% block body %}{% endblock %}
-<div class="floating-dock" id="cm-floating-dock" role="region" aria-label="Selected Picks">
-  <div class="dock-stats"><span><b>0</b> picks</span></div>
-  <button type="button" class="dock-action" id="cm-dock-submit">⚡ Make Booking Code</button>
-  <button type="button" class="dock-clear" id="cm-dock-clear">Clear</button>
+<div class="app-shell">
+  <!-- Backdrop for mobile drawer -->
+  <div class="sidebar-backdrop" id="cm-backdrop"></div>
+
+  <!-- Left Sidebar Navigation -->
+  <aside class="cm-sidebar" id="cm-sidebar" aria-label="Main Navigation">
+    <div class="sidebar-header">
+      <a class="brand" href="{{ url_for('codes.index') }}">Code<span>Match</span></a>
+      <span class="sidebar-badge">v2.0</span>
+      <button type="button" class="sidebar-close" id="cm-sidebar-close" aria-label="Close menu">&times;</button>
+    </div>
+
+    <div class="sidebar-scroll">
+      {% set ep = request.endpoint or '' %}
+      {% set pth = request.path or '' %}
+
+      <!-- HUNT SECTION -->
+      <div class="nav-group">
+        <div class="nav-heading">Hunt &amp; Discover</div>
+        <a href="{{ url_for('leagues.singles') }}" class="nav-item{{ ' active' if ep == 'leagues.singles' else '' }}">
+          <span class="nav-icon">🎯</span> Value Singles
+        </a>
+        <a href="{{ url_for('leagues.parlay') }}" class="nav-item{{ ' active' if ep == 'leagues.parlay' else '' }}">
+          <span class="nav-icon">⚡</span> Custom Parlay
+        </a>
+        <a href="{{ url_for('leagues.index') }}?mode=screen" class="nav-item{{ ' active' if 'mode=screen' in request.query_string.decode() else '' }}">
+          <span class="nav-icon">🔍</span> Market Screener
+        </a>
+        <a href="{{ url_for('leagues.margins') }}" class="nav-item{{ ' active' if ep == 'leagues.margins' else '' }}">
+          <span class="nav-icon">📉</span> Lowest Margins
+        </a>
+        <a href="{{ url_for('leagues.index') }}" class="nav-item{{ ' active' if ep == 'leagues.index' and 'mode=screen' not in request.query_string.decode() else '' }}">
+          <span class="nav-icon">🏆</span> League Fixtures
+        </a>
+      </div>
+
+      <!-- SLIP LAB SECTION -->
+      <div class="nav-group">
+        <div class="nav-heading">Slip Lab</div>
+        <a href="{{ url_for('codes.index') }}" class="nav-item{{ ' active' if ep == 'codes.index' else '' }}">
+          <span class="nav-icon">📋</span> Saved Codes
+        </a>
+        <a href="{{ url_for('codes.hub') }}" class="nav-item{{ ' active' if ep == 'codes.hub' else '' }}">
+          <span class="nav-icon">🌐</span> Code Hub Feed
+        </a>
+        <a href="{{ url_for('codes.batch_surgeon') }}" class="nav-item{{ ' active' if ep == 'codes.batch_surgeon' else '' }}">
+          <span class="nav-icon">🩺</span> Batch Surgeon
+        </a>
+        <a href="{{ url_for('codes.fixtures') }}" class="nav-item{{ ' active' if ep == 'codes.fixtures' else '' }}">
+          <span class="nav-icon">🔗</span> Shared Fixtures
+        </a>
+      </div>
+
+      <!-- GAMES SECTION -->
+      <div class="nav-group">
+        <div class="nav-heading">Games &amp; Steam</div>
+        <a href="{{ url_for('games.index') }}" class="nav-item{{ ' active' if ep == 'games.index' else '' }}">
+          <span class="nav-icon">⚽</span> Match Directory
+        </a>
+        <a href="{{ url_for('games.steam') }}" class="nav-item{{ ' active' if ep == 'games.steam' else '' }}">
+          <span class="nav-icon">📈</span> Odds Steam &amp; Flow
+        </a>
+      </div>
+
+      <!-- TRACK & SETTLE SECTION -->
+      <div class="nav-group">
+        <div class="nav-heading">Track &amp; Settle</div>
+        <a href="{{ url_for('results.settlement') }}" class="nav-item{{ ' active' if ep == 'results.settlement' else '' }}">
+          <span class="nav-icon">🏁</span> Predictions &amp; Scores
+        </a>
+        <a href="{{ url_for('results.index') }}" class="nav-item{{ ' active' if ep == 'results.index' else '' }}">
+          <span class="nav-icon">💰</span> Bankroll &amp; Kelly
+        </a>
+      </div>
+
+      <!-- SYSTEM SECTION -->
+      <div class="nav-group">
+        <div class="nav-heading">System</div>
+        <a href="{{ url_for('imports.index') }}" class="nav-item{{ ' active' if ep.startswith('imports.') else '' }}">
+          <span class="nav-icon">🔄</span> Sync &amp; Bookmark
+        </a>
+        <a href="{{ url_for('codes.guide') }}" class="nav-item{{ ' active' if ep == 'codes.guide' else '' }}">
+          <span class="nav-icon">📖</span> Master Guide
+        </a>
+      </div>
+    </div>
+
+    <!-- Sidebar Footer -->
+    <div class="sidebar-footer">
+      <label style="font-size:12px; margin:0;" title="Kick-off time zone">
+        <select id="tz" style="padding:2px 6px; font-size:12px; min-height:28px;">
+          <option value="utc">UTC (Ghana)</option>
+          <option value="local">Local Time</option>
+        </select>
+      </label>
+      <button type="button" class="theme" id="theme" title="Theme: follow device" aria-label="Change theme">◐</button>
+    </div>
+  </aside>
+
+  <!-- Mobile Top Header Bar -->
+  <div class="app-main-wrap">
+    <header class="mobile-header">
+      <button type="button" class="mobile-toggle" id="cm-menu-toggle" aria-label="Toggle navigation menu">☰</button>
+      <a class="brand" href="{{ url_for('codes.index') }}">Code<span>Match</span></a>
+      <button type="button" class="theme" id="theme-mobile" title="Theme" aria-label="Change theme">◐</button>
+    </header>
+
+    <main>
+    {% block body %}{% endblock %}
+    <div class="floating-dock" id="cm-floating-dock" role="region" aria-label="Selected Picks">
+      <div class="dock-stats"><span><b>0</b> picks</span></div>
+      <button type="button" class="dock-action" id="cm-dock-submit">⚡ Make Booking Code</button>
+      <button type="button" class="dock-clear" id="cm-dock-clear">Clear</button>
+    </div>
+    </main>
+
+    <footer>
+      <p>Chances are SportyBet's own. Every pick carries the bookmaker's margin, so on average every bet returns less than
+      it costs, and combining picks multiplies that. Not affiliated with SportyBet. · <a href="{{ url_for('codes.guide') }}"><b>Master Guide &amp; Glossary</b></a></p>
+    </footer>
+  </div>
 </div>
-</main>
-<footer>
-  <p>Chances are SportyBet's own. Every pick carries the bookmaker's margin, so on average every bet returns less than
-  it costs, and combining picks multiplies that. Not affiliated with SportyBet. · <a href="{{ url_for('codes.guide') }}"><b>Master Guide &amp; Glossary</b></a></p>
-  <label>Times in <select id="tz"><option value="utc">Ghana (UTC)</option><option value="local">this device</option></select></label>
-</footer>
 <script>
 (function () {
-  const root = document.documentElement, btn = document.getElementById("theme");
+  const root = document.documentElement;
+  const themeBtns = [document.getElementById("theme"), document.getElementById("theme-mobile")].filter(Boolean);
   const order = ["", "light", "dark"], names = { "": "follow device", light: "light", dark: "dark" }, icons = { "": "◐", light: "☀", dark: "☾" };
-  const show = t => { btn.textContent = icons[t]; btn.title = "Theme: " + names[t]; };
+  const show = t => { themeBtns.forEach(b => { b.textContent = icons[t]; b.title = "Theme: " + names[t]; }); };
   let cur = root.dataset.theme || ""; show(cur);
-  btn.addEventListener("click", () => {
+  themeBtns.forEach(b => b.addEventListener("click", () => {
     cur = order[(order.indexOf(cur) + 1) % order.length];
     if (cur) root.dataset.theme = cur; else delete root.dataset.theme;
     try { cur ? localStorage.setItem("cm-theme", cur) : localStorage.removeItem("cm-theme"); } catch (e) {}
     show(cur);
-  });
+  }));
+
+  // Mobile drawer controls
+  const sidebar = document.getElementById("cm-sidebar");
+  const backdrop = document.getElementById("cm-backdrop");
+  const openBtn = document.getElementById("cm-menu-toggle");
+  const closeBtn = document.getElementById("cm-sidebar-close");
+  const toggleDrawer = (open) => {
+    if (!sidebar || !backdrop) return;
+    sidebar.classList.toggle("open", open);
+    backdrop.classList.toggle("active", open);
+    document.body.style.overflow = open ? "hidden" : "";
+  };
+  if (openBtn) openBtn.addEventListener("click", () => toggleDrawer(true));
+  if (closeBtn) closeBtn.addEventListener("click", () => toggleDrawer(false));
+  if (backdrop) backdrop.addEventListener("click", () => toggleDrawer(false));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleDrawer(false); });
 
   // kick-off times: written in UTC (Ghana time) by the server, optionally shown in this device's time
   const tz = document.getElementById("tz");

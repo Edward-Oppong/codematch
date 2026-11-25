@@ -36,9 +36,10 @@ flowchart TD
 
     subgraph LAB ["2. Slip Lab (Audit & Surgery)"]
         L1["All Saved Codes (/)"]
-        L2["Code Review & Hero (/code/<CODE>)"]
-        L3["Batch Code Surgeon (/codes/batch-surgeon)"]
-        L4["Fixtures Across Codes (/codes/fixtures)"]
+        L2["Code Hub Community Feed (/codes/hub)"]
+        L3["Code Review & Hero (/code/<CODE>)"]
+        L4["Batch Code Surgeon (/codes/batch-surgeon)"]
+        L5["Fixtures Across Codes (/codes/fixtures)"]
     end
 
     subgraph GAMES ["3. Games & Live Markets"]
@@ -47,11 +48,11 @@ flowchart TD
         G3["Game Inspector (/games/<event_id>)"]
     end
 
-    subgraph TRACK ["4. Track & Calibration"]
-        T1["Bankroll & Kelly Sizing (/results/)"]
-        T2["Closing Line Value / CLV (/results/)"]
-        T3["Personal Calibration Engine (/results/)"]
-        T4["Predictions vs Reality (/results/#results)"]
+    subgraph TRACK ["4. Track & Settle"]
+        T1["Results & Predictions Settlement (/results/settlement)"]
+        T2["Bankroll & Kelly Sizing (/results/)"]
+        T3["Closing Line Value / CLV (/results/)"]
+        T4["Personal Calibration Engine (/results/)"]
     end
 
     ROOT --> HUNT
@@ -59,6 +60,11 @@ flowchart TD
     ROOT --> GAMES
     ROOT --> TRACK
 ```
+
+### Modern Sidebar Navigation Architecture
+Replacing crowded top horizontal navigation bars, CodeMatch uses an institutional, persistent **Left Sidebar Navigation** (`aside.cm-sidebar`):
+- **Desktop ($\ge 900\text{px}$):** 250px fixed left panel with clear visual groupings (Hunt, Slip Lab, Games, Track & Settle, System), active left-border indicator, and integrated timezone / theme controls.
+- **Mobile ($< 900\text{px}$):** Collapses into a sticky top bar with hamburger menu (`☰`), sliding out as a smooth off-canvas drawer with backdrop blur.
 
 ---
 

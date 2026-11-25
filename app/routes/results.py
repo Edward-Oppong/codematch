@@ -210,6 +210,122 @@ def index(msgs=()):
         settled_comparisons=settled_comparisons[:50], comp_stats=comp_stats)
 
 
+@bp.get("/settlement")
+def settlement(msgs=()):
+    """Dedicated Match Score Settlement and Predictions vs Actual Reality audit page."""
+    con = get_db()
+    res, manual = store.results(con), store.manual_results(con)
+    codes = [c["code"] for c in store.codes(con)]
+    all_legs_map = store.load_all_legs(con)
+    legs_by_code = {c: all_legs_map.get(c, []) for c in codes}
+    settled = {c: settle.settle_code(legs, res, manual, c) for c, legs in legs_by_code.items()}
+    bets_ = store.bets(con)
+    played = {b["code"] for b in bets_}
+    now = now_ms()
+
+    started = lambda l: (l.get("start_ms") or 0) + settle.AFTER_KICKOFF_MS < now
+    all_legs = [l for s in settled.values() for l in s["legs"]]
+    need_score = {(l["event_id"], l["match"]) for l in all_legs if l["status"] == "pending" and started(l)}
+
+    past_unsettled = con.execute("""
+        SELECT e.event_id, e.home, e.away, e.start_ms 
+        FROM events e 
+        LEFT JOIN results r ON r.event_id = e.event_id 
+        WHERE r.event_id IS NULL AND (e.start_ms + ?) < ?
+        ORDER BY e.start_ms DESC LIMIT 80
+    """, (settle.AFTER_KICKOFF_MS, now)).fetchall()
+    for row in past_unsettled:
+        need_score.add((row["event_id"], f"{row['home']} v {row['away']}"))
+
+    settled_comparisons = []
+    seen_events = set()
+    for l in all_legs:
+        if l.get("status") in ("won", "lost", "void"):
+            eid = l.get("event_id")
+            res_val = res.get(eid)
+            score_str = f"{res_val[0] + res_val[2]} - {res_val[1] + res_val[3]} (HT {res_val[0]} - {res_val[1]})" if res_val else None
+            prob = l.get("prob")
+            settled_comparisons.append({
+                "match": l.get("match", ""),
+                "market": l.get("market", ""),
+                "pick": l.get("pick", ""),
+                "odds": l.get("odds", 0),
+                "prob": prob,
+                "status": l.get("status"),
+                "score": score_str,
+                "start_ms": l.get("start_ms") or 0,
+                "source": "Saved Code"
+            })
+            if eid:
+                seen_events.add(eid)
+
+    finished_events = con.execute("""
+        SELECT e.event_id, e.home, e.away, e.start_ms, r.h1, r.a1, r.h2, r.a2
+        FROM events e
+        JOIN results r ON r.event_id = e.event_id
+        ORDER BY e.start_ms DESC LIMIT 50
+    """).fetchall()
+    for fe in finished_events:
+        eid = fe["event_id"]
+        if eid in seen_events:
+            continue
+        res_tuple = (fe["h1"], fe["a1"], fe["h2"], fe["a2"])
+        score_str = f"{fe['h1'] + fe['h2']} - {fe['a1'] + fe['a2']} (HT {fe['h1']} - {fe['a1']})"
+        match_name = f"{fe['home']} v {fe['away']}"
+        top_picks = con.execute("""
+            SELECT label, odds, prob, mid, spec, odesc FROM picks
+            WHERE event_id = ? AND prob IS NOT NULL AND mid IN ('1', '18', '29', '10')
+            ORDER BY prob DESC LIMIT 3
+        """, (eid,)).fetchall()
+        for p in top_picks:
+            leg = {
+                "market_id": p["mid"],
+                "specifier": p["spec"] or "",
+                "pick": p["odesc"] or p["label"].split(": ", 1)[-1],
+                "match": match_name
+            }
+            st = settle.leg_status(leg, res_tuple)
+            if st in ("won", "lost", "void"):
+                settled_comparisons.append({
+                    "match": match_name,
+                    "market": p["label"].split(": ")[0] if ": " in p["label"] else "Market",
+                    "pick": p["label"].split(": ", 1)[-1],
+                    "odds": p["odds"],
+                    "prob": p["prob"],
+                    "status": st,
+                    "score": score_str,
+                    "start_ms": fe["start_ms"] or 0,
+                    "source": "Imported Game"
+                })
+
+    settled_comparisons.sort(key=lambda x: x["start_ms"], reverse=True)
+    decided = [c for c in settled_comparisons if c["status"] in ("won", "lost")]
+    comp_stats = {
+        "total": len(decided),
+        "won": sum(1 for c in decided if c["status"] == "won"),
+        "lost": sum(1 for c in decided if c["status"] == "lost"),
+        "void": sum(1 for c in settled_comparisons if c["status"] == "void"),
+        "win_rate": (sum(1 for c in decided if c["status"] == "won") / len(decided) * 100) if decided else 0,
+        "avg_prob": (sum(c["prob"] for c in decided if c["prob"]) / len(decided) * 100) if decided else 0,
+    }
+
+    hub = {c["code"]: c for c in store.codes(con) if c.get("source") == "hub"}
+    need_manual = [(c, l) for c, s in settled.items() for l in s["legs"] if l["status"] == "manual" and started(l)
+                   and (c in played or c not in hub)]
+    need_manual.sort(key=lambda cl: (cl[0] not in played, cl[1].get("start_ms") or 0))
+
+    return render_template(
+        "results/settlement.html",
+        need_score=len(need_score),
+        score_snippet=snippets.events_snippet(sorted(need_score)[:40]) if need_score else None,
+        need_manual=need_manual[:100],
+        n_manual=len(need_manual),
+        settled_comparisons=settled_comparisons,
+        comp_stats=comp_stats,
+        msgs=msgs
+    )
+
+
 @bp.post("/bankroll")
 def set_bankroll():
     con = get_db()

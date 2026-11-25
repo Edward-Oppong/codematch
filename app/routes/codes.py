@@ -232,10 +232,45 @@ def _hub_snippet(f):
     return snippets.hub_snippet(days=days, pages=pages, odds=(lo, hi), legs=(min(lmin, lmax), max(lmin, lmax)))
 
 
-@bp.post("/codes/hub")
+def _index_hub(hub_snippet=None, msgs=()):
+    con = get_db()
+    from . import num, now_ms
+    from ..analysis.settle import AFTER_KICKOFF_MS
+    now = now_ms()
+    rows, cache = [], {}
+    get_event = lambda eid: cache.setdefault(("ev", eid), (store.get_event(con, eid) or (None,))[0])
+    sort = request.args.get("sort", "popular")
+    sort = sort if sort in SORTS else "popular"
+    goal = min(max(num(request.args, "goal", store.settings(con).get("usual_odds") or 3.0), 1.01), 10000.0)
+
+    legs_by_code = store.load_all_legs(con)
+    all_codes = store.codes(con)
+    for c in all_codes:
+        if c.get("source") != "hub":
+            continue
+        legs = legs_by_code.get(c["code"], [])
+        s = review.summarise(legs)
+        weak = s["weakest"][0] if s["weakest"] else None
+        rows.append({**c, **s, "open": (s["first"] or 0) >= now,
+                     "finished": bool(s["last"]) and s["last"] + AFTER_KICKOFF_MS < now,
+                     "keeps": 1 - s["exp_return"] if s["exp_return"] is not None else None,
+                     "weak": weak})
+    listed = [r for r in rows if not r["finished"]]
+    key, desc = SORTS[sort]
+    have = [r for r in listed if r.get(key) is not None]
+    shown = sorted(have, key=lambda r: r[key], reverse=desc) + [r for r in listed if r.get(key) is None]
+    best = sorted((r for r in listed if r["open"] and r["exp_return"] is not None), key=lambda r: -r["exp_return"])[:3]
+    built = _best_built(listed, legs_by_code, get_event, goal)
+    return render_template("codes/hub.html", shown=shown, best=best, built=built, sort=sort, goal=goal,
+                           hub_snippet=hub_snippet, msgs=msgs)
+
+
+@bp.route("/codes/hub", methods=["GET", "POST"])
 def hub():
-    """Console code for the Code Hub fetch (the fallback; it can't fetch the codes' games in the same go)."""
-    return _index(hub_snippet=_hub_snippet(request.form))
+    """Code Hub: trending community codes, best right now, and consensus generator."""
+    if request.method == "POST":
+        return _index(hub_snippet=_hub_snippet(request.form))
+    return _index_hub()
 
 
 @bp.post("/codes/hub/queue")

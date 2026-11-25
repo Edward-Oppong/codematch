@@ -15,8 +15,9 @@ def _day(ms):
 
 
 def test_every_page_loads_empty(client):
-    for url in ("/", "/leagues/", "/games/", "/import/", "/leagues/fetch?tid=sr:tournament:17",
-                "/leagues/sr:tournament:17", "/code/NOPE"):
+    for url in ("/", "/codes/hub", "/leagues/", "/leagues/parlay", "/leagues/singles",
+                "/games/", "/import/", "/results/", "/results/settlement", "/guide",
+                "/leagues/fetch?tid=sr:tournament:17", "/leagues/sr:tournament:17", "/code/NOPE"):
         r = client.get(url)
         assert r.status_code in (200, 302), url
     assert client.get("/games/sr:match:9").status_code == 404

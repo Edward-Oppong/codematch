@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Results &amp; Predictions Settlement · CodeMatch{% endblock %}
+{% block body %}
+<a class="back" href="{{ url_for('results.index') }}">&larr; Track &amp; Bankroll</a>
+<h1>Results &amp; Predictions Settlement</h1>
+<p class="lede">Fetch final match scores, audit pre-match probabilities against real-world outcomes, and settle tickets across all market families.</p>
+{{ m.flow_tracker(4) }}
+
+{{ m.messages(msgs) }}
+
+{% if need_score %}
+<div class="card" style="border-left:4px solid var(--accent); padding:16px 20px; margin:20px 0;">
+  <div style="font-weight:700; color:var(--accent); font-size:16px;">🏁 {{ need_score }} match{{ 'es' if need_score != 1 else '' }} waiting for final score{{ 's' if need_score != 1 else '' }}</div>
+  <p class="muted" style="margin:4px 0 12px;">Kickoff was over 2.5 hours ago. Click the button below to fetch final and half-time scores directly via your CodeMatch bookmark.</p>
+  {{ m.snippet(score_snippet, "Fetch final scores with CodeMatch button", open=True) }}
+</div>
+{% else %}
+<div class="card" style="border-left:4px solid var(--low); padding:12px 18px; margin:16px 0;">
+  <span class="good" style="font-weight:600;">✓ All past matches have scores recorded.</span>
+  <span class="muted small">Scores are up to date across your database.</span>
+</div>
+{% endif %}
+
+<h2>Predictions vs. Actual Match Results</h2>
+<p class="muted">Compare pre-match probabilities and odds against actual full-time match scorelines to verify whether the system's positive expectation holds in reality.</p>
+
+<div class="figures" style="margin-bottom:20px;">
+  {{ m.figure("Decided Predictions", comp_stats.total) }}
+  {{ m.figure("Won", comp_stats.won, cls='good') }}
+  {{ m.figure("Lost", comp_stats.lost, cls='bad') }}
+  {% if comp_stats.void %}{{ m.figure("Void / Push", comp_stats.void) }}{% endif %}
+  {{ m.figure("Actual Win Rate", '%.1f%%'|format(comp_stats.win_rate), cls='good' if comp_stats.win_rate >= comp_stats.avg_prob else 'warn') }}
+  {{ m.figure("Avg Stated Prob", '%.1f%%'|format(comp_stats.avg_prob)) }}
+</div>
+
+{% if settled_comparisons %}
+<div class="scroll"><table class="stack">
+  <thead>
+    <tr>
+      <th>Fixture</th>
+      <th>Market &amp; Selection</th>
+      <th class="num">Stated Odds</th>
+      <th class="num">Stated Prob</th>
+      <th>Actual Final Score</th>
+      <th>Outcome</th>
+      <th>Source</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in settled_comparisons %}
+    <tr>
+      <td><b>{{ c.match }}</b><br><span class="muted small">{{ c.start_ms|kickoff if c.start_ms else '' }}</span></td>
+      <td data-label="Pick">{{ c.market }}: <b>{{ c.pick }}</b></td>
+      <td data-label="Odds" class="num"><b>{{ '%.2f'|format(c.odds) }}</b></td>
+      <td data-label="Prob" class="num">{% if c.prob %}{{ '%.1f%%'|format(c.prob * 100) }}{% else %}-{% endif %}</td>
+      <td data-label="Final Score">{% if c.score %}<b style="letter-spacing:0.5px;">{{ c.score }}</b>{% else %}<span class="muted">Awaiting score</span>{% endif %}</td>
+      <td data-label="Outcome">
+        {% if c.status == 'won' %}
+        <span class="pill good" style="font-weight:700;">✓ Won</span>
+        {% elif c.status == 'lost' %}
+        <span class="pill bad" style="font-weight:700;">✗ Lost</span>
+        {% elif c.status == 'void' %}
+        <span class="pill" style="color:var(--ink-2); background:var(--rule);">⚪ Void</span>
+        {% else %}
+        <span class="pill warn">⏳ Pending</span>
+        {% endif %}
+      </td>
+      <td data-label="Source" class="muted small">{{ c.source }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p class="muted">No settled match predictions found yet. As matches finish and scores are imported, their side-by-side verification will appear here.</p>
+{% endif %}
+
+{% if need_manual %}
+<h2 id="manual" style="margin-top:36px;">Legs to mark by hand ({{ n_manual }})</h2>
+<p class="muted">Non-score markets (Corners, Cards, Player Props) cannot be determined from full-time scorelines alone. Click an outcome to settle the leg:</p>
+<div class="scroll"><table class="stack">
+  <tr><th>Code</th><th>Game</th><th>Pick</th><th>Result?</th></tr>
+  {% for code, leg in need_manual %}
+  <tr>
+    <td><a href="{{ url_for('codes.review_code', code=code) }}"><b>{{ code }}</b></a></td>
+    <td>{{ leg.match }}<br><span class="muted small">{{ leg.start_ms|kickoff if leg.start_ms else '' }}</span></td>
+    <td data-label="Pick">{{ leg.market }}: <b>{{ leg.pick }}</b> (odds {{ leg.odds }})</td>
+    <td>
+      <form method="post" action="{{ url_for('results.set_leg') }}" class="leg-mark">
+        <input type="hidden" name="code" value="{{ code }}">
+        <input type="hidden" name="sel_key" value="{{ leg.sel_key }}">
+        <input type="hidden" name="back" value="{{ request.full_path }}">
+        <button class="secondary" name="status" value="won" style="color:var(--low); font-weight:650;">✓ Won</button>
+        <button class="secondary" name="status" value="lost" style="color:var(--high); font-weight:650;">✗ Lost</button>
+        <button class="secondary" name="status" value="void">Void</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% endif %}
+
+<div class="card" style="margin-top:32px;">
+  <b>How Automatic Settlement Works:</b>
+  <p class="muted small">CodeMatch deterministically audits final scorelines across all 1X2 match results, Over/Under goal lines (totals), Both Teams to Score (GG/NG), European &amp; Asian Handicaps, and Half-Time scores. Refund/push outcomes automatically set odds to 1.00 rather than counting as a loss.</p>
+</div>
+{% endblock %}
