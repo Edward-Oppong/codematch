@@ -23,7 +23,7 @@ LIST_MARKETS = ("1,18,10,29,11,26,36,14,"      # list-page defaults
                 "19,20,"                        # home / away goal totals
                 "139,136,900304,900305,"        # bookings: total, 1X2, home, away
                 "166,162,900300,900301")        # corners: total, 1X2, home, away
-PAUSE_MS = 1500
+PAUSE_MS = 400
 
 
 def _fname(prefix, ident):
@@ -151,7 +151,7 @@ def directory_snippet():
 # On a match page with nothing queued, it fetches that game. Everything it sends goes to the user's own app.
 BUTTON_VERSION = "3"     # raise when the bookmark's code changes, so the app can ask for a fresh one
 # v3: guard against clicking bookmark on non-sportybet tabs with direct instructions
-BOOKMARKLET = r"""(async()=>{const A=%(base)s,K=%(key)s,V=%(version)s,d=document,P=1500;
+BOOKMARKLET = r"""(async()=>{const A=%(base)s,K=%(key)s,V=%(version)s,d=document,P=400;
 let b=d.getElementById("cm-box");if(!b){b=d.body.appendChild(d.createElement("div"));b.id="cm-box"}
 b.style.cssText="position:fixed;z-index:2147483647;right:16px;bottom:16px;max-width:380px;padding:12px 16px;border-radius:10px;background:#16211c;color:#f2f4f1;font:14px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35)";
 const say=t=>{b.textContent="CodeMatch: "+t};
@@ -165,12 +165,20 @@ let j=await(await F(A+"bridge/job?v="+V+"&k="+K)).json();
 if(!j.requests||!j.requests.length){const m=decodeURIComponent(location.pathname).match(/sr:match:\d+/);
 if(!m){say(j.message||"nothing to fetch. Choose something in CodeMatch first.");return}
 j={id:"",requests:[{label:"this game",url:location.origin+"/api/gh/factsCenter/event?productId=3&eventId="+encodeURIComponent(m[0])}]}}
-let ok=0,bad=0;const R=j.requests;
+let ok=0,bad=0;const R=j.requests,posts=[];
 for(let i=0;i<R.length;i++){const q=R[i];say((i+1)+" of "+R.length+": "+q.label);
 try{const r=await F(q.url,q.body?{method:"POST",credentials:"include",headers:{...H,"content-type":"application/json"},body:q.body}:{credentials:"include",headers:H});
-const t=await r.text();if(!r.ok){bad++;await post("bridge/import?job="+j.id+"&refused="+r.status+"&label="+encodeURIComponent(q.label),t.slice(0,300))}
-else{const x=await(await post("bridge/import?job="+j.id,t)).json();if(x.add&&x.add.length)R.push(...x.add);ok++}}catch(e){bad++}
+const t=await r.text();
+if(!r.ok){bad++;posts.push(post("bridge/import?job="+j.id+"&refused="+r.status+"&label="+encodeURIComponent(q.label),t.slice(0,300)))}
+else{
+const p=post("bridge/import?job="+j.id,t).then(async res=>{
+try{const x=await res.json();if(x.add&&x.add.length)R.push(...x.add);ok++}catch(e){}
+}).catch(()=>{bad++});
+posts.push(p);
+}}catch(e){bad++}
 if(i<R.length-1)await new Promise(s=>setTimeout(s,P))}
+say("syncing with CodeMatch...");
+await Promise.all(posts);
 const s=await(await post("bridge/done?job="+j.id+"&failed="+bad,"")).json();
 say("done. "+s.summary+(bad?" "+bad+" request"+(bad>1?"s":"")+" failed.":"")+" Go back to the CodeMatch tab.")}
 catch(e){keep=30000;say("couldn't reach the app at "+A+". Is CodeMatch running on this computer? If the browser asks to access devices on your local network, choose Allow. ("+e.message+")")}

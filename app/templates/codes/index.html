@@ -170,7 +170,7 @@ because less of the stake goes to SportyBet's margin. <b>SportyBet keeps</b> is 
 </form>
 {% endif %}
 {% if n_hub_done %}<p class="muted small">{{ n_hub_done }} finished Code Hub code{{ 's' if n_hub_done != 1 }} left this
-list; they're kept {{ keep_days }} days for the <a href="{{ url_for('results.index') }}#hub">Code Hub track record</a>.</p>{% endif %}
+list; they're kept {{ keep_days }} days for the <a href="{{ url_for('results.settlement') }}#hub">Code Hub track record</a>.</p>{% endif %}
 
 {% if too_many_to_pair %}<p class="muted">Similar codes are compared when 60 or fewer codes are listed. Fixtures across
 codes works with any number.</p>{% endif %}

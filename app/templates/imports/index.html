@@ -35,7 +35,7 @@ after moving the app to another port, drag it again from here.</p>
       <button class="secondary" style="margin-top:6px">Clear stale job</button>
     </form>
   </li>
-  <li><b>Check this app is running</b> at <a href="http://127.0.0.1:5000/" target="_blank">http://127.0.0.1:5000/</a>. The bookmark is hardcoded to that address; if you use a different port, drag a fresh bookmark from here.</li>
+  <li><b>Check this app is running</b> at <a href="{{ request.host_url }}" target="_blank">{{ request.host_url }}</a>. The bookmark sends data directly to this address. If you switch between local and cloud, drag a fresh bookmark from this page.</li>
 </ol>
 </details>
 

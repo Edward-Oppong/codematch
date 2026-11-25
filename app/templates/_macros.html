@@ -4,7 +4,7 @@
 
 {# A fetch from sportybet.com. The main way is the CodeMatch bookmark button; pasting code into the console is kept
    as a fallback. `code` is a Snippet: the console code, carrying its list of requests. #}
-{% macro snippet(code, summary, open=False, note=None) %}
+{% macro snippet(code, summary, open=False, note=None, show_console=False) %}
 <details class="snippet"{{ ' open' if open }}>
 <summary>{{ summary }}</summary>
 <div class="fetch">
@@ -14,6 +14,7 @@
   {% if button_outdated %}<b class="warn">Your CodeMatch bookmark is out of date:</b> <a href="{{ url_for('imports.index') }}#button">drag the new one</a> over it.{% endif %}</span>
 </div>
 {% if note %}<p class="muted">{{ note }}</p>{% endif %}
+{% if show_console %}
 <details class="console">
 <summary>Or paste code into the console</summary>
 <ol class="steps">
@@ -23,6 +24,7 @@
 </ol>
 <div class="code-wrap"><button type="button" class="copy secondary" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText).then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1600); })">Copy</button><pre>{{ code }}</pre></div>
 </details>
+{% endif %}
 </details>
 {% endmacro %}
 
