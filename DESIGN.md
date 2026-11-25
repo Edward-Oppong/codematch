@@ -217,6 +217,8 @@ skipped when the device asks for reduced motion.
 
 | Component | Class | Where |
 |---|---|---|
+| Sidebar Shell | `aside.cm-sidebar` | persistent 250px left navigation shell (Hunt, Slip Lab, Games, Track & Settle, System) |
+| Mobile Top Bar | `.mobile-header` > `.mobile-toggle` | mobile viewports (<900px): top brand bar with off-canvas hamburger toggle |
 | Flow Stepper | `.flow-tracker` > `.flow-step` | top of core pages: 4-step betting pipeline with clickable stage jumps |
 | Floating Booking Dock | `.floating-dock` | docks to screen bottom when ≥1 leg is ticked: live stats & 1-click booking dispatch |
 | Strategy Cards | `.strategy-bar` > `.strategy-card` | Custom Parlay Builder: clear interactive cards for algorithmic parlay modes |

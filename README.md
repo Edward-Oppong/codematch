@@ -57,7 +57,8 @@ flowchart TD
         Engines <--> DB
     end
 
-    subgraph UI ["User Interface Layer (Vanilla HTML5 / CSS3)"]
+    subgraph UI ["User Interface Layer (Vanilla HTML5 / CSS3 & Modern Sidebar)"]
+        SIDEBAR["Persistent Sidebar Navigation (Hunt, Slip Lab, Games, Track, System)"]
         DOCK["Sticky Floating Booking Dock"]
         STEPPER["4-Step Betting Workflow"]
         QUEUE["1-Click Code Dispatcher"]
@@ -143,6 +144,16 @@ The quantitative advantage alternative to high-margin accumulators. Finds single
 - **Calibration Engine & Significance Gate:** Tests your empirical win rate against bookmaker probabilities across each market family with a 95% Wilson score confidence interval, applying a statistical threshold ($N \ge 50$) to prevent false precision.
 - **Account Longevity Shield:** Suggests whole-number stake rounding and alerts against single-market over-concentration ($>60\%$) to evade bookmaker algorithmic profiling and account restrictions.
 
+### 5. Automated Results & Predictions Settlement Hub (`/results/settlement`)
+- **Scoreline Settlement Engine:** Ingests completed match scorelines and automatically determines winning/losing outcomes across all placed and saved bets.
+- **Predictions vs. Reality Audit:** Compares empirical outcomes against SportyBet's implied chances across full-time 1X2, Over/Under lines, and Double Chance to verify bookmaker accuracy over time.
+- **Manual Settlement Tools:** One-click settlement modal for non-score prop markets (Cards, Corners, Player props) where official automated feeds are unavailable.
+
+### 6. Dedicated Community Code Hub Feed (`/codes/hub`)
+- **Trending Slip Curation:** Displays public SportyBet booking codes filtered and ranked by community popularity, win probability, or expected return.
+- **Toxicity Badges & Health Scoring:** Immediately flags community tickets carrying Grade D or Grade F house margins before betting.
+- **Crowd Consensus Generator:** Synthesizes the most popular selections across all active community slips into an optimized consensus ticket.
+
 ---
 
 ## Deployment & Setup
@@ -224,39 +235,34 @@ refuses to start with debug mode on a non-local address. Change the address with
 `CODEMATCH_PORT`.
 
 
-## The sections
+## Information Architecture & Dedicated Pages
 
-**Codes.** Paste booking codes, run the code the page gives you, upload the file. Each code gets a review: total odds,
-chance of winning, return per 1 staked, how many legs sit in each odds zone, and for every leg its rank in the game and
-the safer or riskier picks on the same game. Codes that share or overlap picks are compared.
-**Code Hub** (the first tab of the box on Codes) fetches the codes other SportyBet users share, most popular first,
-for the next 1 to 7 days, about 20 codes per page, optionally within a total-odds and legs range. One request per page
-brings every code with all its picks, odds and chances. With "Also fetch every game in these codes" ticked, the
-button then fetches each of their games (up to 60, not started, not already fully imported) in the same trip, so every
-leg can be compared with the rest of its game. Only accumulators are kept (other bet types list a total that isn't
-the product of their legs). The creators' user ids are never saved. Leagues known only by id get a name from a
-built-in list of the main leagues, or from the league list and imported games once they arrive.
-The list can be shown by source (Code Hub or pasted by you), limited to codes with no game started, and ordered by
-back per 1 staked (the default), chance, total odds, first kick-off or Code Hub popularity. Each row shows what
-SportyBet keeps and the weakest leg. Back per 1 is the fair way to compare codes with different odds: at the same
-odds, the code that gives back more per 1 is the likelier one.
-**Best right now**, at the top of Codes, shows the three open codes that give back most per 1, and the highest-chance
-code built from the fixtures they share at the total odds you choose (remembered).
-Finished Code Hub codes leave the list; their outcome goes into the track record on Results, and the codes themselves
-are deleted 30 days after their last game unless you recorded a bet on them.
-"Raise the chance" on a review shows the code with fewer legs (keep the N most likely) and/or each leg swapped for
-the most likely safer pick on its game that still pays a minimum odds, with chance, odds and return before and after.
-"Same odds, higher chance" keeps the odds you ask for (the code's own, by default) and finds, among every pick on
-the code's games, the set that reaches them and wins most often, optionally with every leg at least a given chance.
-Deleting: tick codes on the Codes page (or delete all), or "Delete this code" on a review; "Delete this game" on a
-game page; "Delete this league and its games" on a league page; old games, all games or everything under "Clear data"
-on Import; one bet with its × on Results, or the whole bet record (type DELETE to confirm); and "Make a new key" on
-Import retires a CodeMatch bookmark you shared by mistake. Forms that change data are only accepted from the app's
-own pages, so other websites can't trigger them.
-Fetching a code or game again replaces the saved copy, so nothing needs deleting before a fresh import.
-Each game's picks are priced once when it's imported and saved as rows, so Leagues reads them without loading the
-whole game (100 fully fetched games: about a tenth of a second). Games saved by an older version are priced the first
-time a page needs them.
+The platform is organized around a persistent, responsive **Sidebar Navigation** with zero redundancy between features:
+
+### 1. Hunt
+- **⚡ Custom Parlay (`/leagues/parlay`):** Algorithmic accumulator builder across 4 strategies (Target Odds, Staggered Kickoff, Safe Zone, Round-Robin).
+- **🎯 Value Singles (`/leagues/singles`):** Single-match +EV betting edge scanner with Quarter-Kelly cash staking recommendations.
+- **🔍 Market Screener (`/leagues/?mode=screen`):** Multi-league scanner for finding games matching specific market criteria.
+- **📉 Lowest Margins (`/leagues/margins`):** Direct ranking of leagues where bookmakers charge the lowest commission.
+- **🏆 League Fixtures (`/leagues/`):** Clean directory of tournament fixtures and match odds.
+
+### 2. Slip Lab
+- **📋 Saved Codes (`/`):** Personal saved booking codes, toxicity checks, and 1-click surgeon curing.
+- **🌐 Code Hub Feed (`/codes/hub`):** Dedicated community feed with trending codes, popularity sorting, toxicity grades, and crowd consensus slip builder.
+- **🩺 Batch Surgeon (`/codes/batch-surgeon`):** Global multi-ticket curing engine to eliminate high-margin picks across multiple tickets simultaneously.
+- **🔗 Shared Fixtures (`/codes/fixtures`):** Common-ground matches that appear across multiple codes.
+
+### 3. Games & Steam
+- **⚽ Match Directory (`/games/`):** Directory of imported fixtures with kick-off schedules.
+- **📈 Odds Steam & Flow (`/games/steam`):** Real-time monitoring of shortening and drifting lines to detect smart-money flow.
+
+### 4. Track & Settle
+- **🏁 Predictions & Scores (`/results/settlement`):** Dedicated settlement hub for scoreline fetching, Predictions vs. Reality audits, and manual settlement.
+- **💰 Bankroll & Kelly (`/results/`):** Dedicated bankroll ledger, P&L cashflow, Kelly stake sizing, monthly deposit limits, and Account Longevity Shield.
+
+### 5. System
+- **🔄 Sync & Bookmark (`/import/`):** Sandboxed browser bridge installation (with 400ms pause and pipelined async uploads for 4x faster fetching), HAR/JSON file import, and database maintenance.
+- **📖 Master Guide (`/codes/guide`):** Complete mathematical and architectural reference manual.
 Two legs on the same game are both kept, and their joint chance is worked out together rather than multiplied: exactly
 when one implies the other, when they contradict, or when the combination is itself a priced market; otherwise it's
 an estimate and the review says so.
