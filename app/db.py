@@ -45,6 +45,15 @@ CREATE TABLE IF NOT EXISTS bets(
 """
 
 
+def _ensure_schema(con):
+    """Create schema on fresh database and run upgrades if needed."""
+    has_tables = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='events'").fetchone()
+    if not has_tables:
+        _before_schema(con)
+        con.executescript(SCHEMA)
+    _upgrade(con)
+
+
 def connect(path):
     folder = os.path.dirname(path)
     if folder:
@@ -60,9 +69,7 @@ def connect(path):
         con.execute("PRAGMA mmap_size = 268435456")
     except sqlite3.Error:
         pass
-    _before_schema(con)
-    con.executescript(SCHEMA)
-    _upgrade(con)
+    _ensure_schema(con)
     return con
 
 

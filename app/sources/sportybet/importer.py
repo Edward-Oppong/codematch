@@ -148,14 +148,19 @@ def import_text(con, text):
     if not docs:
         return [(False, "No JSON found. The file or paste should contain a SportyBet response (it starts with { or [).")]
     msgs = []
+    need_naming = False
     for obj in docs:
         if is_har(obj):
             msgs += _import_har(con, obj)
+            need_naming = True
             continue
         kind, m = _handle(con, obj)
+        if kind in ("league", "directory", "hub"):
+            need_naming = True
         if not m and isinstance(obj, dict) and obj.get("bizCode") not in (None, 10000):
             m = [(False, f"SportyBet said: {obj.get('message') or 'error ' + str(obj.get('bizCode'))}")]
         msgs += m or [(False, "A JSON block was found but it isn't a response type the app uses "
                               "(booking code, Code Hub list, game, league, league directory).")]
-    store.name_leagues(con)
+    if need_naming:
+        store.name_leagues(con)
     return msgs
