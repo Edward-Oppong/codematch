@@ -190,69 +190,6 @@ def _one_or_compatible(rows, one, noconf):
     return kept, len(rows) - len(kept)
 
 
-@bp.get("/margins")
-def margins():
-    """Where SportyBet keeps least: the average margin by market and by league, over the saved games in the
-    chosen dates and leagues, split by odds zone."""
-    con = get_db()
-    imported = store.imported_leagues(con)
-    start, end, start_ms, end_ms = day_range(request.args, default_days=7)
-    chosen = request.args.getlist("tid") or [l["tournament_id"] for l in imported]
-    upcoming = request.args.get("upcoming", "1" if "start" not in request.args else "") == "1"
-    now = now_ms()
-    games = [g for g in store.list_events(con, start_ms, end_ms, chosen)
-             if not (upcoming and (g["start_ms"] or 0) < now)]
-    blocked = store.banned_ids(con) | store.ensure_picks(con, [g["event_id"] for g in games])
-    ids = [g["event_id"] for g in games if g["event_id"] not in blocked]
-    try:
-        min_games = max(1, int(request.args.get("min") or 3))
-    except ValueError:
-        min_games = 3
-    all_markets = store.margins(con, ids, "market")
-    families = [f for f in markets.FAMILIES if any(r["family"] == f for r in all_markets)]
-    by_market = [r for r in all_markets if r["games"] >= min_games]
-    fam = request.args.get("fam") if request.args.get("fam") in markets.FAMILIES else None
-    if fam:
-        by_market = [r for r in by_market if r["family"] == fam]
-    by_league = [r for r in store.margins(con, ids, "league") if r["family"] in markets.MAIN_FAMILIES]
-    leagues = {}
-    for r in by_league:
-        lg = leagues.setdefault(r["tournament_id"], {"name": f'{r["category"] or ""} {r["tournament"] or ""}'.strip(),
-                                                     "games": 0, "fams": {}})
-        lg["games"] = max(lg["games"], r["games"])
-        lg["fams"][r["family"]] = r
-
-    # Target odds builder from lowest-margin markets
-    goal = num(request.args, "goal", None) or num(request.args, "todds", None)
-    built_slip = None
-    if goal and ids:
-        goal = min(max(goal, 1.01), 1000.0)
-        target_fams = [fam] if fam else markets.FAMILIES
-        priced_by_game = store.load_picks(con, ids, target_fams, minp=0.35, maxp=1.0, mino=1.10, maxo=10.0)
-        game_pool = []
-        for g in games:
-            priced = priced_by_game.get(g["event_id"], {})
-            if priced:
-                low_margin_priced = {k: v for k, v in priced.items() if v.get("ret") is not None and v["ret"] >= 0.90}
-                if low_margin_priced:
-                    candidates = reach.from_priced(g["event_id"], f'{g["home"]} v {g["away"]}', low_margin_priced,
-                                                   minp=0.35, maxp=1.0, mino=1.10, maxo=10.0)
-                    for c in candidates:
-                        c.update(start_ms=g.get("start_ms"), tournament=g.get("tournament"))
-                    game_pool.append(candidates)
-        if game_pool:
-            opt = flow.optimize_pool(game_pool, target_odds=goal, min_chance=0.35)
-            if opt.get("legs"):
-                built_slip = opt
-
-    return render_template("leagues/margins.html", by_market=by_market, leagues=sorted(
-        leagues.values(), key=lambda l: (l["fams"].get("goals") or {}).get("kept", 1)), zones=picks.ZONES,
-        n_games=len(ids), start=start, end=end, upcoming=upcoming, imported=imported, chosen=set(chosen),
-        all_chosen=set(chosen) == {l["tournament_id"] for l in imported}, min_games=min_games, fam=fam,
-        families=families, main_fams=markets.MAIN_FAMILIES,
-        built_slip=built_slip, goal=goal)
-
-
 @bp.get("/singles")
 def singles():
     """Value Singles Scanner: Finds single-match picks where SportyBet takes the smallest cut (highest expected return),

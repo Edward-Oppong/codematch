@@ -109,7 +109,6 @@
   <a href="{{ url_for('leagues.singles', **qs) }}" class="{{ 'on' if active == 'singles' else '' }}">🎯 Value Singles</a>
   <a href="{{ url_for('leagues.parlay', **qs) }}" class="{{ 'on' if active == 'parlay' else '' }}">⚡ Custom Parlay Builder</a>
   <a href="{{ url_for('leagues.index', mode='screen', **qs) }}" class="{{ 'on' if active == 'screen' else '' }}">Choose the bet, find the teams</a>
-  <a href="{{ url_for('leagues.margins', **qs) }}" class="{{ 'on' if active == 'margins' else '' }}">📊 Lowest Margin</a>
   <a href="{{ url_for('leagues.index', **qs) }}#get-leagues" class="{{ 'on' if active == 'leagues' else '' }}" style="margin-left:auto; font-weight:700;">📋 Get Leagues</a>
 </nav>
 {% endmacro %}

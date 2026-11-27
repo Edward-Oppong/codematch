@@ -42,9 +42,6 @@
         <a href="{{ url_for('leagues.index') }}?mode=screen" class="nav-item{{ ' active' if 'mode=screen' in request.query_string.decode() else '' }}">
           <span class="nav-icon">🔍</span> Market Screener
         </a>
-        <a href="{{ url_for('leagues.margins') }}" class="nav-item{{ ' active' if ep == 'leagues.margins' else '' }}">
-          <span class="nav-icon">📉</span> Lowest Margins
-        </a>
         <a href="{{ url_for('leagues.index') }}" class="nav-item{{ ' active' if ep == 'leagues.index' and 'mode=screen' not in request.query_string.decode() else '' }}">
           <span class="nav-icon">🏆</span> League Fixtures
         </a>
