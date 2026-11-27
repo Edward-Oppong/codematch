@@ -42,6 +42,28 @@ CREATE TABLE IF NOT EXISTS hub_outcomes(
     settled_at INTEGER);
 CREATE TABLE IF NOT EXISTS bets(
     id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT, stake REAL, placed_at INTEGER, payout REAL);
+CREATE TABLE IF NOT EXISTS rollovers(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    start_stake REAL,
+    target_odds REAL,
+    target_amount REAL,
+    current_step INTEGER DEFAULT 0,
+    current_stake REAL,
+    status TEXT DEFAULT 'active',
+    created_at INTEGER,
+    updated_at INTEGER);
+CREATE TABLE IF NOT EXISTS rollover_steps(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rollover_id INTEGER,
+    step INTEGER,
+    stake REAL,
+    odds REAL,
+    result TEXT,
+    payout REAL,
+    note TEXT,
+    played_at INTEGER);
+CREATE INDEX IF NOT EXISTS rollover_steps_rid ON rollover_steps(rollover_id);
 """
 
 

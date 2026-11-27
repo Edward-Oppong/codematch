@@ -274,7 +274,7 @@ def singles():
     min_ret = num(request.args, "minret", 90.0) / 100.0
     fam = request.args.get("fam", "").strip()
     by = request.args.get("by", "prob").strip()
-    dir_filter = request.args.get("dir", "all").strip()
+    dir_filter = request.args.get("dir", "no_unders").strip()
     one = request.args.get("one", "1") == "1"
 
     cfg = store.settings(con)
@@ -327,7 +327,7 @@ def parlay():
 
     from ..analysis import flow, parlay_builder
     priced_by_game = store.load_picks(con, ids, markets.MAIN_FAMILIES, minp=0.15, maxp=1.0, mino=1.10, maxo=10.0)
-    dir_filter = request.args.get("dir", "no_extreme_under").strip()
+    dir_filter = request.args.get("dir", "no_unders").strip()
     game_pool = []
     for g in games_raw:
         priced = priced_by_game.get(g["event_id"], {})

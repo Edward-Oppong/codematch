@@ -87,6 +87,9 @@
         <a href="{{ url_for('results.index') }}" class="nav-item{{ ' active' if ep == 'results.index' else '' }}">
           <span class="nav-icon">💰</span> Bankroll &amp; Kelly
         </a>
+        <a href="{{ url_for('rollover.index') }}" class="nav-item{{ ' active' if ep.startswith('rollover.') else '' }}">
+          <span class="nav-icon">🔄</span> Rollover Tracker
+        </a>
       </div>
 
       <!-- SYSTEM SECTION -->

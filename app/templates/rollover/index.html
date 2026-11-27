@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Rollover Tracker — CodeMatch{% endblock %}
+{% block body %}
+<div class="page-header">
+  <h1>🔄 Rollover Tracker</h1>
+  <p class="page-sub">Grow your stake step by step — win, let it ride. Bust, restart lean.</p>
+</div>
+
+{# --- New Rollover Form --- #}
+<section class="card mb-4">
+  <div class="card-head"><h2>Start a New Rollover</h2></div>
+  <form method="post" action="{{ url_for('rollover.new') }}" class="form-grid">
+    <div class="form-row">
+      <label>
+        Name
+        <input type="text" name="name" placeholder="e.g. November Grind" maxlength="60" value="My Rollover" class="form-control">
+      </label>
+      <label>
+        Starting Stake (GHS)
+        <input type="number" name="start_stake" value="5" min="0.5" step="0.5" class="form-control">
+      </label>
+      <label>
+        Target Odds Per Step
+        <input type="number" name="target_odds" value="1.70" min="1.01" step="0.05" class="form-control">
+      </label>
+      <label>
+        Target Amount (GHS) <small style="opacity:.6">(optional)</small>
+        <input type="number" name="target_amount" placeholder="e.g. 500" min="0" step="1" class="form-control">
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">🚀 Start Rollover</button>
+    </div>
+  </form>
+</section>
+
+{# --- Quick Preview Ladder (JS-driven) --- #}
+<section class="card mb-4" id="preview-card" style="display:none">
+  <div class="card-head"><h2>📈 Ladder Preview</h2><span class="badge badge-info" id="preview-steps-badge"></span></div>
+  <div class="table-wrap">
+    <table class="data-table" id="preview-table">
+      <thead><tr><th>Step</th><th>Stake (GHS)</th><th>Payout @ Odds</th></tr></thead>
+      <tbody id="preview-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+{# --- Existing Rollovers --- #}
+{% if rollovers %}
+<h2 style="margin:1.5rem 0 .75rem">Your Rollovers</h2>
+<div class="card-list">
+  {% for rv in rollovers %}
+  <div class="card rollover-card {{ rv.status }}">
+    <div class="rollover-card-head">
+      <div>
+        <span class="rollover-name">{{ rv.name }}</span>
+        <span class="badge badge-{{ 'success' if rv.status == 'active' else ('warning' if rv.status == 'bust' else 'muted') }}">
+          {{ rv.status }}
+        </span>
+      </div>
+      <a href="{{ url_for('rollover.detail', rollover_id=rv.id) }}" class="btn btn-sm btn-primary">Open →</a>
+    </div>
+    <div class="rollover-stats">
+      <div><span class="stat-label">Step</span><span class="stat-val">{{ rv.current_step }}</span></div>
+      <div><span class="stat-label">Current Stake</span><span class="stat-val">GHS {{ "%.2f"|format(rv.current_stake) }}</span></div>
+      <div><span class="stat-label">Target Odds</span><span class="stat-val">{{ "%.2f"|format(rv.target_odds) }}</span></div>
+      {% if rv.target_amount %}
+      <div><span class="stat-label">Target</span><span class="stat-val">GHS {{ "%.0f"|format(rv.target_amount) }}</span></div>
+      <div>
+        <span class="stat-label">Progress</span>
+        <span class="stat-val">
+          {% set pct = [(rv.current_stake / rv.target_amount * 100), 100]|min %}
+          <div class="progress-bar-wrap"><div class="progress-bar" style="width:{{ pct|int }}%"></div></div>
+          {{ "%.1f"|format(pct) }}%
+        </span>
+      </div>
+      {% endif %}
+      <div><span class="stat-label">Steps Won</span>
+        <span class="stat-val">{{ rv.steps|selectattr('result','eq','won')|list|length }} / {{ rv.steps|length }}</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <span style="font-size:3rem">🌱</span>
+  <p>No rollovers yet. Start one above with 5 GHS and watch it grow.</p>
+</div>
+{% endif %}
+
+<style>
+.form-grid{display:flex;flex-direction:column;gap:1rem}
+.form-row{display:flex;flex-wrap:wrap;gap:.75rem}
+.form-row label{display:flex;flex-direction:column;gap:.25rem;font-size:.85rem;font-weight:600;flex:1 1 150px}
+.form-row input{font-size:1rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:.4rem;background:var(--bg-card);color:inherit}
+.form-actions{display:flex;justify-content:flex-end}
+.card-list{display:flex;flex-direction:column;gap:1rem}
+.rollover-card{padding:1rem 1.25rem}
+.rollover-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.rollover-name{font-size:1.1rem;font-weight:700;margin-right:.5rem}
+.rollover-stats{display:flex;flex-wrap:wrap;gap:1rem}
+.rollover-stats>div{display:flex;flex-direction:column;gap:.15rem}
+.stat-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;opacity:.6}
+.stat-val{font-size:.95rem;font-weight:600;font-variant-numeric:tabular-nums}
+.progress-bar-wrap{width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:4px}
+.progress-bar{height:100%;background:var(--pitch);border-radius:3px}
+.badge-success{background:#2d6a2d;color:#fff}
+.badge-warning{background:#8a5a00;color:#fff}
+.badge-muted{background:#555;color:#fff}
+.badge-info{background:var(--pitch-mid,#2d8a3e);color:#fff}
+.empty-state{text-align:center;padding:3rem 1rem;opacity:.7}
+</style>
+<script>
+// Live ladder preview
+const stakeInput = document.querySelector('[name=start_stake]');
+const oddsInput  = document.querySelector('[name=target_odds]');
+const targetInput= document.querySelector('[name=target_amount]');
+const preview    = document.getElementById('preview-card');
+const tbody      = document.getElementById('preview-tbody');
+const badge      = document.getElementById('preview-steps-badge');
+
+function buildLadder() {
+  const stake  = parseFloat(stakeInput.value) || 5;
+  const odds   = parseFloat(oddsInput.value)  || 1.70;
+  const target = parseFloat(targetInput.value) || 0;
+  let s = stake, rows = [], step = 1;
+  while (step <= 30) {
+    const payout = +(s * odds).toFixed(2);
+    rows.push({step, stake: s.toFixed(2), payout: payout.toFixed(2)});
+    if (target && payout >= target) break;
+    s = payout; step++;
+  }
+  tbody.innerHTML = rows.map(r =>
+    `<tr><td>${r.step}</td><td>GHS ${r.stake}</td><td>GHS ${r.payout}</td></tr>`
+  ).join('');
+  badge.textContent = rows.length + ' steps';
+  preview.style.display = '';
+}
+[stakeInput, oddsInput, targetInput].forEach(el => el.addEventListener('input', buildLadder));
+buildLadder();
+</script>
+{% endblock %}

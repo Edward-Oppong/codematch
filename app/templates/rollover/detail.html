@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}{{ rv.name }} — Rollover — CodeMatch{% endblock %}
+{% block body %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem">
+  <div>
+    <h1>🔄 {{ rv.name }}
+      <span class="badge badge-{{ 'success' if rv.status == 'active' else ('warning' if rv.status == 'bust' else 'muted') }}">{{ rv.status }}</span>
+    </h1>
+    <p class="page-sub">Started GHS {{ "%.2f"|format(rv.start_stake) }} · target {{ "%.2f"|format(rv.target_odds) }}x per step{% if rv.target_amount %} · aim GHS {{ "%.0f"|format(rv.target_amount) }}{% endif %}</p>
+  </div>
+  <a href="{{ url_for('rollover.index') }}" class="btn btn-sm btn-ghost">← All Rollovers</a>
+</div>
+
+{# --- Summary Stats --- #}
+<div class="stat-row mb-4">
+  <div class="stat-box">
+    <span class="stat-label">Step</span>
+    <span class="stat-num">{{ rv.current_step }}</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">Current Stake</span>
+    <span class="stat-num">GHS {{ "%.2f"|format(rv.current_stake) }}</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">Steps Won</span>
+    <span class="stat-num">{{ completed }}</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">Total Staked</span>
+    <span class="stat-num">GHS {{ "%.2f"|format(total_staked) }}</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">Total Returned</span>
+    <span class="stat-num">GHS {{ "%.2f"|format(total_returned) }}</span>
+  </div>
+  <div class="stat-box {{ 'positive' if net >= 0 else 'negative' }}">
+    <span class="stat-label">Net P&amp;L</span>
+    <span class="stat-num">{{ '+' if net >= 0 else '' }}GHS {{ "%.2f"|format(net) }}</span>
+  </div>
+  {% if rv.target_amount %}
+  <div class="stat-box">
+    <span class="stat-label">Progress to Target</span>
+    <span class="stat-num">
+      {% set pct = [(rv.current_stake / rv.target_amount * 100), 100]|min %}
+      <div class="progress-bar-wrap wide"><div class="progress-bar" style="width:{{ pct|int }}%"></div></div>
+      {{ "%.1f"|format(pct) }}%
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+{# --- Value Singles nudge --- #}
+{% if rv.status == 'active' %}
+<div class="card mb-4" style="border-left:3px solid var(--pitch)">
+  <div class="card-body" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <div style="font-size:1.5rem">🎯</div>
+    <div style="flex:1">
+      <strong>Find today's pick</strong><br>
+      <span style="opacity:.7;font-size:.9rem">Use Value Singles with <em>No Unders</em> to find a confident single for step {{ rv.current_step + 1 }}. Stake exactly GHS {{ "%.2f"|format(rv.current_stake) }}.</span>
+    </div>
+    <a href="{{ url_for('leagues.singles') }}?dir=no_unders" class="btn btn-primary">Value Singles →</a>
+  </div>
+</div>
+{% endif %}
+
+{# --- Record a Step --- #}
+{% if rv.status == 'active' %}
+<section class="card mb-4">
+  <div class="card-head"><h2>Record Step {{ rv.current_step + 1 }}</h2>
+    <span style="opacity:.6;font-size:.85rem">Stake: GHS {{ "%.2f"|format(rv.current_stake) }}</span>
+  </div>
+  <form method="post" action="{{ url_for('rollover.add_step', rollover_id=rv.id) }}" class="form-row-inline">
+    <label>
+      Odds Used
+      <input type="number" name="odds" value="{{ "%.2f"|format(rv.target_odds) }}" min="1.01" step="0.01" class="form-control-sm" required>
+    </label>
+    <label>
+      Result
+      <select name="result" class="form-control-sm">
+        <option value="won">✅ Won</option>
+        <option value="lost">❌ Lost</option>
+      </select>
+    </label>
+    <label>
+      Note <small style="opacity:.6">(optional)</small>
+      <input type="text" name="note" placeholder="e.g. Arsenal vs Chelsea, 1X2" maxlength="120" class="form-control-sm">
+    </label>
+    <button type="submit" class="btn btn-primary">Save Step</button>
+  </form>
+</section>
+{% elif rv.status == 'bust' %}
+<div class="card mb-4" style="border-left:3px solid #c0392b">
+  <div class="card-body" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <div style="font-size:1.5rem">💔</div>
+    <div style="flex:1">
+      <strong>Bust on step {{ rv.current_step }}</strong> — that hurts. Ready to try again?
+    </div>
+    <form method="post" action="{{ url_for('rollover.restart', rollover_id=rv.id) }}">
+      <button type="submit" class="btn btn-primary">🔄 Restart from GHS {{ "%.2f"|format(rv.start_stake) }}</button>
+    </form>
+  </div>
+</div>
+{% elif rv.status == 'won' %}
+<div class="card mb-4" style="border-left:3px solid #27ae60">
+  <div class="card-body" style="display:flex;align-items:center;gap:1rem">
+    <div style="font-size:2rem">🏆</div>
+    <strong>Target reached! GHS {{ "%.2f"|format(rv.current_stake) }} in hand. 🎉</strong>
+  </div>
+</div>
+{% endif %}
+
+{# --- Projected Ladder from Current Position --- #}
+<section class="card mb-4">
+  <div class="card-head">
+    <h2>📈 Remaining Ladder</h2>
+    <span class="badge badge-info">{{ ladder|length }} steps to go</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Step</th><th>Stake (GHS)</th><th>Payout @ {{ "%.2f"|format(rv.target_odds) }}x</th></tr></thead>
+      <tbody>
+        {% for row in ladder %}
+        <tr {{ 'style="font-weight:700;background:var(--bg-row-hi,rgba(45,138,62,.1))"' if loop.first else '' }}>
+          <td>+{{ loop.index0 }} (step {{ rv.current_step + loop.index }})</td>
+          <td>GHS {{ "%.2f"|format(row.stake) }}</td>
+          <td>GHS {{ "%.2f"|format(row.payout) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{# --- Step History --- #}
+{% if steps %}
+<section class="card mb-4">
+  <div class="card-head"><h2>Step History</h2><span class="badge badge-muted">{{ steps|length }} recorded</span></div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>#</th><th>Stake</th><th>Odds</th><th>Result</th><th>Payout</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for s in steps|reverse %}
+        <tr class="{{ 'row-won' if s.result == 'won' else 'row-lost' }}">
+          <td>{{ s.step }}</td>
+          <td>GHS {{ "%.2f"|format(s.stake) }}</td>
+          <td>{{ "%.2f"|format(s.odds) }}</td>
+          <td>{{ '✅ Won' if s.result == 'won' else '❌ Lost' }}</td>
+          <td>{% if s.result == 'won' %}GHS {{ "%.2f"|format(s.payout) }}{% else %}—{% endif %}</td>
+          <td style="opacity:.7">{{ s.note or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{# --- Full Ladder from Start --- #}
+<details class="card mb-4" style="padding:0">
+  <summary style="padding:.75rem 1rem;font-weight:600;cursor:pointer">📋 Full Ladder from GHS {{ "%.2f"|format(rv.start_stake) }}</summary>
+  <div class="table-wrap" style="padding-bottom:.75rem">
+    <table class="data-table">
+      <thead><tr><th>Step</th><th>Stake (GHS)</th><th>Payout @ {{ "%.2f"|format(rv.target_odds) }}x</th></tr></thead>
+      <tbody>
+        {% for row in full_ladder %}
+        <tr>
+          <td>{{ row.step }}</td>
+          <td>GHS {{ "%.2f"|format(row.stake) }}</td>
+          <td>GHS {{ "%.2f"|format(row.payout) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+
+{# --- Danger Zone --- #}
+<details class="card" style="padding:0;border-left:3px solid #c0392b">
+  <summary style="padding:.75rem 1rem;font-weight:600;cursor:pointer;color:#c0392b">⚠ Danger Zone</summary>
+  <div style="padding:.75rem 1rem">
+    <form method="post" action="{{ url_for('rollover.delete', rollover_id=rv.id) }}"
+          onsubmit="return confirm('Delete this rollover and all its steps? This cannot be undone.')">
+      <button type="submit" class="btn btn-danger">🗑 Delete Rollover</button>
+    </form>
+  </div>
+</details>
+
+<style>
+.stat-row{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem}
+.stat-box{background:var(--bg-card);border:1px solid var(--border);border-radius:.5rem;padding:.6rem .9rem;display:flex;flex-direction:column;gap:.15rem;min-width:100px}
+.stat-box.positive .stat-num{color:#27ae60}
+.stat-box.negative .stat-num{color:#c0392b}
+.stat-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;opacity:.6}
+.stat-num{font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
+.form-row-inline{display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end}
+.form-row-inline label{display:flex;flex-direction:column;gap:.2rem;font-size:.82rem;font-weight:600;flex:1 1 120px}
+.form-control-sm{font-size:.95rem;padding:.35rem .55rem;border:1px solid var(--border);border-radius:.4rem;background:var(--bg-card);color:inherit}
+.row-won{background:rgba(39,174,96,.07)}
+.row-lost{background:rgba(192,57,43,.07)}
+.progress-bar-wrap{display:inline-block;vertical-align:middle;height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-right:4px}
+.progress-bar-wrap{width:60px}.progress-bar-wrap.wide{width:120px}
+.progress-bar{height:100%;background:var(--pitch);border-radius:3px}
+.badge-success{background:#2d6a2d;color:#fff}
+.badge-warning{background:#8a5a00;color:#fff}
+.badge-muted{background:#555;color:#fff}
+.badge-info{background:var(--pitch-mid,#2d8a3e);color:#fff}
+.btn-ghost{border:1px solid var(--border);background:transparent;color:inherit}
+.btn-danger{background:#c0392b;color:#fff;border:none;padding:.4rem .9rem;border-radius:.4rem;cursor:pointer;font-weight:600}
+details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}
+</style>
+{% endblock %}

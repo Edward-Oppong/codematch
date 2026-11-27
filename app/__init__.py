@@ -114,7 +114,7 @@ def create_app(config=None):
         st = store.settings(get_db())
         return {"button_used": bool(st.get("bridge_used")), "button_outdated": bool(st.get("button_outdated"))}
 
-    from .routes import bridge, codes, games, imports, leagues, results
-    for bp in (codes.bp, leagues.bp, games.bp, results.bp, imports.bp, bridge.bp):
+    from .routes import bridge, codes, games, imports, leagues, results, rollover
+    for bp in (codes.bp, leagues.bp, games.bp, results.bp, imports.bp, bridge.bp, rollover.bp):
         app.register_blueprint(bp)
     return app

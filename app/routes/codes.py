@@ -98,7 +98,9 @@ def _index(snippet=None, msgs=(), hub_snippet=None):
     key, desc = SORTS[sort]
     have = [r for r in shown if r.get(key) is not None]
     shown = sorted(have, key=lambda r: r[key], reverse=desc) + [r for r in shown if r.get(key) is None]
-    best = sorted((r for r in listed if r["open"] and r["exp_return"] is not None), key=lambda r: -r["exp_return"])[:3]
+    best = sorted((r for r in listed if r["open"] and r["exp_return"] is not None
+                   and (not hide_toxic or r.get("toxicity_grade") not in ("D", "F"))),
+                  key=lambda r: -r["exp_return"])[:3]
     built = _best_built(listed, legs_by_code, get_event, goal)
     pairs = compare.compare_pairs({r["code"]: legs_by_code[r["code"]] for r in listed}) if len(listed) <= 60 else []
     return render_template("codes/index.html", rows=listed, shown=shown, pairs=pairs[:10], n_pairs=len(pairs),
@@ -265,7 +267,9 @@ def _index_hub(hub_snippet=None, msgs=()):
     key, desc = SORTS[sort]
     have = [r for r in listed if r.get(key) is not None]
     shown = sorted(have, key=lambda r: r[key], reverse=desc) + [r for r in listed if r.get(key) is None]
-    best = sorted((r for r in listed if r["open"] and r["exp_return"] is not None), key=lambda r: -r["exp_return"])[:3]
+    best = sorted((r for r in listed if r["open"] and r["exp_return"] is not None
+                   and (not hide_toxic or r.get("toxicity_grade") not in ("D", "F"))),
+                  key=lambda r: -r["exp_return"])[:3]
     built = _best_built(listed, legs_by_code, get_event, goal)
     return render_template("codes/hub.html", shown=shown, best=best, built=built, sort=sort, goal=goal,
                            hide_toxic=hide_toxic, hub_snippet=hub_snippet, msgs=msgs)

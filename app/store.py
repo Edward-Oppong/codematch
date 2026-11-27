@@ -656,3 +656,84 @@ def name_leagues(con):
             n += con.execute("UPDATE selections SET league=? WHERE league=?", (names[tid], tid)).rowcount
     con.commit()
     return n
+
+
+# ---------- rollover tracker ----------
+
+def create_rollover(con, name, start_stake, target_odds, target_amount):
+    ts = int(time.time())
+    cur = con.execute(
+        "INSERT INTO rollovers(name,start_stake,target_odds,target_amount,current_step,current_stake,status,created_at,updated_at) VALUES(?,?,?,?,0,?,?,?,?)",
+        (name, start_stake, target_odds, target_amount, start_stake, "active", ts, ts))
+    con.commit()
+    return cur.lastrowid
+
+
+def get_rollover(con, rollover_id):
+    r = con.execute("SELECT * FROM rollovers WHERE id=?", (rollover_id,)).fetchone()
+    return dict(r) if r else None
+
+
+def list_rollovers(con):
+    return [dict(r) for r in con.execute("SELECT * FROM rollovers ORDER BY updated_at DESC")]
+
+
+def rollover_steps(con, rollover_id):
+    return [dict(r) for r in con.execute(
+        "SELECT * FROM rollover_steps WHERE rollover_id=? ORDER BY step", (rollover_id,))]
+
+
+def record_rollover_step(con, rollover_id, odds, result, note=""):
+    """Record a won/lost step and update the rollover state accordingly."""
+    rv = get_rollover(con, rollover_id)
+    if not rv or rv["status"] != "active":
+        return None
+    step = rv["current_step"] + 1
+    stake = rv["current_stake"]
+    payout = round(stake * odds, 2) if result == "won" else 0.0
+    ts = int(time.time())
+    con.execute(
+        "INSERT INTO rollover_steps(rollover_id,step,stake,odds,result,payout,note,played_at) VALUES(?,?,?,?,?,?,?,?)",
+        (rollover_id, step, stake, odds, result, payout, note, ts))
+    if result == "won":
+        new_stake = payout
+        new_status = "won" if rv["target_amount"] and payout >= rv["target_amount"] else "active"
+    else:
+        new_stake = rv["start_stake"]  # restart from initial stake on bust
+        new_status = "bust"
+    con.execute(
+        "UPDATE rollovers SET current_step=?,current_stake=?,status=?,updated_at=? WHERE id=?",
+        (step, new_stake, new_status, ts, rollover_id))
+    con.commit()
+    return {"step": step, "stake": stake, "odds": odds, "result": result, "payout": payout}
+
+
+def restart_rollover(con, rollover_id):
+    """Reset a bust rollover back to active from the starting stake."""
+    rv = get_rollover(con, rollover_id)
+    if not rv:
+        return
+    ts = int(time.time())
+    con.execute(
+        "UPDATE rollovers SET current_step=0,current_stake=start_stake,status='active',updated_at=? WHERE id=?",
+        (ts, rollover_id))
+    con.commit()
+
+
+def delete_rollover(con, rollover_id):
+    con.execute("DELETE FROM rollover_steps WHERE rollover_id=?", (rollover_id,))
+    con.execute("DELETE FROM rollovers WHERE id=?", (rollover_id,))
+    con.commit()
+
+
+def rollover_ladder(start_stake, target_odds, target_amount, max_steps=30):
+    """Generate the full projected ladder from start_stake to target_amount."""
+    rows = []
+    stake = start_stake
+    for step in range(1, max_steps + 1):
+        payout = round(stake * target_odds, 2)
+        rows.append({"step": step, "stake": round(stake, 2), "payout": payout})
+        if target_amount and payout >= target_amount:
+            break
+        stake = payout
+    return rows
