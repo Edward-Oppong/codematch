@@ -135,6 +135,7 @@ the games that appear in several codes, what each code picked, and the highest-c
     <option value="kickoff"{{ ' selected' if sort == 'kickoff' }}>first kick-off, soonest first</option>
     <option value="popular"{{ ' selected' if sort == 'popular' }}>Code Hub popularity</option></select></label>
   <label class="check"><input type="checkbox" name="open" value="1"{{ ' checked' if open_only }} onchange="this.form.submit()"> only codes with no game started</label>
+  <label class="check" style="color:var(--accent); font-weight:600;"><input type="checkbox" name="hide_toxic" value="1"{{ ' checked' if hide_toxic }} onchange="this.form.submit()"> 🛡️ Hide toxic slips (Grade D &amp; F)</label>
   <noscript><button class="secondary">Show</button></noscript>
 </div>
 <details class="explain"><summary>Why back per 1, not chance?</summary>

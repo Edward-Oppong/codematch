@@ -57,6 +57,11 @@
     <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
     <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
     <label><input type="checkbox" name="upcoming" value="1" {{ 'checked' if upcoming }}> Only games not yet started</label>
+    <label>Picks Bias <select name="dir" onchange="this.form.requestSubmit()">
+      <option value="no_extreme_under" {{ 'selected' if dir == 'no_extreme_under' }}>🛡️ Safe: No Extreme Unders (No Under 4.5/5.5)</option>
+      <option value="no_unders" {{ 'selected' if dir == 'no_unders' }}>⚽ No Unders (Overs, Double Chance &amp; 1X2 only)</option>
+      <option value="all" {{ 'selected' if dir == 'all' }}>Allow All Markets</option>
+    </select></label>
   </div>
 
   {# Strategy-Specific Configuration Fields #}

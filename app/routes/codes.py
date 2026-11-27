@@ -68,6 +68,7 @@ def _index(snippet=None, msgs=(), hub_snippet=None):
     sort = request.args.get("sort", "ret")
     sort = sort if sort in SORTS else "ret"
     open_only = request.args.get("open") == "1"
+    hide_toxic = request.args.get("hide_toxic") == "1"
     goal = min(max(num(request.args, "goal", store.settings(con).get("usual_odds") or 3.0), 1.01), 10000.0)
     if request.args.get("goal"):
         try:
@@ -92,6 +93,8 @@ def _index(snippet=None, msgs=(), hub_snippet=None):
     shown = [r for r in listed if src == "all" or (r.get("source") == "hub") == (src == "hub")]
     if open_only:
         shown = [r for r in shown if r["open"]]
+    if hide_toxic:
+        shown = [r for r in shown if r.get("toxicity_grade") not in ("D", "F")]
     key, desc = SORTS[sort]
     have = [r for r in shown if r.get(key) is not None]
     shown = sorted(have, key=lambda r: r[key], reverse=desc) + [r for r in shown if r.get(key) is None]
@@ -99,7 +102,7 @@ def _index(snippet=None, msgs=(), hub_snippet=None):
     built = _best_built(listed, legs_by_code, get_event, goal)
     pairs = compare.compare_pairs({r["code"]: legs_by_code[r["code"]] for r in listed}) if len(listed) <= 60 else []
     return render_template("codes/index.html", rows=listed, shown=shown, pairs=pairs[:10], n_pairs=len(pairs),
-                           src=src, sort=sort, open_only=open_only, best=best, built=built, goal=goal,
+                           src=src, sort=sort, open_only=open_only, hide_toxic=hide_toxic, best=best, built=built, goal=goal,
                            n_hub=sum(1 for r in listed if r.get("source") == "hub"),
                            n_hub_done=sum(1 for r in rows if r.get("source") == "hub" and r["finished"]),
                            hub_snippet=hub_snippet, too_many_to_pair=len(listed) > 60, keep_days=HUB_KEEP_DAYS,
@@ -241,6 +244,7 @@ def _index_hub(hub_snippet=None, msgs=()):
     get_event = lambda eid: cache.setdefault(("ev", eid), (store.get_event(con, eid) or (None,))[0])
     sort = request.args.get("sort", "popular")
     sort = sort if sort in SORTS else "popular"
+    hide_toxic = request.args.get("hide_toxic") == "1"
     goal = min(max(num(request.args, "goal", store.settings(con).get("usual_odds") or 3.0), 1.01), 10000.0)
 
     legs_by_code = store.load_all_legs(con)
@@ -256,13 +260,15 @@ def _index_hub(hub_snippet=None, msgs=()):
                      "keeps": 1 - s["exp_return"] if s["exp_return"] is not None else None,
                      "weak": weak})
     listed = [r for r in rows if not r["finished"]]
+    if hide_toxic:
+        listed = [r for r in listed if r.get("toxicity_grade") not in ("D", "F")]
     key, desc = SORTS[sort]
     have = [r for r in listed if r.get(key) is not None]
     shown = sorted(have, key=lambda r: r[key], reverse=desc) + [r for r in listed if r.get(key) is None]
     best = sorted((r for r in listed if r["open"] and r["exp_return"] is not None), key=lambda r: -r["exp_return"])[:3]
     built = _best_built(listed, legs_by_code, get_event, goal)
     return render_template("codes/hub.html", shown=shown, best=best, built=built, sort=sort, goal=goal,
-                           hub_snippet=hub_snippet, msgs=msgs)
+                           hide_toxic=hide_toxic, hub_snippet=hub_snippet, msgs=msgs)
 
 
 @bp.route("/codes/hub", methods=["GET", "POST"])

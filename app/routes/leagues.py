@@ -327,12 +327,19 @@ def parlay():
 
     from ..analysis import flow, parlay_builder
     priced_by_game = store.load_picks(con, ids, markets.MAIN_FAMILIES, minp=0.15, maxp=1.0, mino=1.10, maxo=10.0)
+    dir_filter = request.args.get("dir", "no_extreme_under").strip()
     game_pool = []
     for g in games_raw:
         priced = priced_by_game.get(g["event_id"], {})
         if priced:
             candidates = reach.from_priced(g["event_id"], f'{g["home"]} v {g["away"]}', priced,
                                            minp=0.15, maxp=1.0, mino=1.10, maxo=10.0)
+            if dir_filter == "no_extreme_under":
+                candidates = [c for c in candidates if not any(x in c["label"] for x in ("Under 4", "Under 5", "Under 6"))]
+            elif dir_filter == "no_unders":
+                candidates = [c for c in candidates if "Under" not in c["label"]]
+            elif dir_filter == "over":
+                candidates = [c for c in candidates if "Over" in c["label"] or "Under" not in c["label"]]
             for c in candidates:
                 c.update(start_ms=g.get("start_ms"), tournament=g.get("tournament"))
             if candidates:
@@ -370,7 +377,7 @@ def parlay():
                            min_chance=min_chance * 100.0, n_legs=n_legs, min_gap=min_gap,
                            pool_size=pool_size, fold_size=fold_size, unit_stake=unit_stake,
                            n_games=len(ids), start=start, end=end, upcoming=upcoming,
-                           imported=imported, chosen=set(chosen),
+                           imported=imported, chosen=set(chosen), dir=dir_filter,
                            all_chosen=set(chosen) == {l["tournament_id"] for l in imported},
                            zones=picks.ZONES,
                            show_all_url=url_for("leagues.parlay", **{k: request.args.getlist(k) for k in request.args if k != "tid"}))

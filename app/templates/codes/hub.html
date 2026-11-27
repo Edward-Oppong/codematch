@@ -68,9 +68,9 @@
 
 <h2>Trending Public Codes ({{ shown|length }})</h2>
 <div class="card filters">
-  <div class="row">
+  <form method="get" class="row">
     <label>Order by
-      <select onchange="location.href = '?sort=' + this.value">
+      <select name="sort" onchange="this.form.submit()">
         <option value="popular"{{ ' selected' if sort == 'popular' }}>Most popular</option>
         <option value="ret"{{ ' selected' if sort == 'ret' }}>Lowest house margin (Back per 1)</option>
         <option value="chance"{{ ' selected' if sort == 'chance' }}>Highest win chance</option>
@@ -78,9 +78,10 @@
         <option value="kickoff"{{ ' selected' if sort == 'kickoff' }}>First kickoff</option>
       </select>
     </label>
-    <a href="{{ url_for('codes.fixtures') }}" class="button secondary" style="text-decoration:none; font-weight:600;">🔗 Fixtures Across Codes</a>
+    <label class="check" style="color:var(--accent); font-weight:600;"><input type="checkbox" name="hide_toxic" value="1"{{ ' checked' if hide_toxic }} onchange="this.form.submit()"> 🛡️ Hide toxic slips (Grade D &amp; F)</label>
+    <a href="{{ url_for('codes.fixtures') }}" class="button secondary" style="text-decoration:none; font-weight:600; margin-left:auto;">🔗 Fixtures Across Codes</a>
     <a href="{{ url_for('codes.batch_surgeon') }}" class="button secondary" style="text-decoration:none; font-weight:650; color:var(--accent); border-color:var(--accent);">⚡ Batch Surgeon</a>
-  </div>
+  </form>
 </div>
 
 {% if shown %}
