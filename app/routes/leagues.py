@@ -3,13 +3,49 @@ from flask import Blueprint, jsonify, redirect, render_template, request, url_fo
 
 from . import day_range, now_ms, num
 from .. import store
-from ..analysis import markets, picks
+from ..analysis import calibrate, markets, picks, poisson
 from ..analysis import flow
 from ..analysis import target as reach
 from ..db import get_db
 from ..sources.sportybet import parse, snippets
 
 bp = Blueprint("leagues", __name__, url_prefix="/leagues")
+
+
+def _settled_calibration(con):
+    """Return {canonical_family: edge_fraction} from settled code legs, if enough history exists."""
+    from ..analysis import settle
+    codes = [c["code"] for c in store.codes(con)]
+    if not codes:
+        return {}
+    res, manual = store.results(con), store.manual_results(con)
+    if not res and not manual:
+        return {}
+    all_legs = store.load_all_legs(con)
+    settled_legs = []
+    for c in codes:
+        legs = all_legs.get(c, [])
+        if legs:
+            s = settle.settle_code(legs, res, manual, c)
+            settled_legs.extend(l for l in s["legs"] if l.get("status") in ("won", "lost"))
+    return calibrate.calibration_adjustments(settled_legs) if settled_legs else {}
+
+
+def _match_consensus(consensus, r):
+    """Look up how many saved/hub codes include this pick."""
+    eid = r["event_id"]
+    lbl = r.get("label") or ""
+    if ": " in lbl:
+        mkt, pck = lbl.split(": ", 1)
+        n = consensus.get((eid, mkt.lower(), pck.lower()))
+        if n:
+            return n
+    odesc = (r.get("odesc") or "").lower()
+    if odesc:
+        for (ceid, _mkt, cpck), n in consensus.items():
+            if ceid == eid and cpck == odesc:
+                return n
+    return 0
 
 
 @bp.get("/")
@@ -217,8 +253,30 @@ def singles():
     cfg = store.settings(con)
     bankroll = cfg.get("bankroll")
     rows = store.value_singles(con, ids, mino=mino, maxo=maxo, minp=minp, min_ret=min_ret,
-                               family=fam or None, order_by=by, direction=dir_filter,
-                               one_per_game=one, limit=100)
+                               family=fam or None, order_by="prob" if by == "sharp" else by,
+                               direction=dir_filter, one_per_game=one, limit=100)
+
+    row_eids = list({r["event_id"] for r in rows})
+    steam = store.steam_map(con, row_eids)
+    consensus = store.consensus_counts(con, row_eids)
+    cal_adj = _settled_calibration(con)
+
+    # Fit implied Poisson goal model once per unique game in results
+    poisson_fits = {}
+    if row_eids:
+        store._id_table(con, row_eids)
+        anchor_rows = con.execute("""
+            SELECT p.event_id, p.label, p.prob FROM picks p
+            JOIN sel_ids s ON s.event_id = p.event_id
+            WHERE p.prob_ok = 1 AND p.cond = 0
+              AND (p.label LIKE '1X2:%' OR p.label LIKE '%2.5%')
+        """).fetchall()
+        by_eid = {}
+        for ar in anchor_rows:
+            by_eid.setdefault(ar["event_id"], []).append(dict(ar))
+        for eid, plist in by_eid.items():
+            poisson_fits[eid] = poisson.fit_event(plist)
+
     for r in rows:
         r["sel"] = {"eventId": r["event_id"], "marketId": r["mid"], "specifier": r["spec"] or "", "outcomeId": r["oid"]}
         r["zone"] = picks.zone(r["odds"])
@@ -229,6 +287,30 @@ def singles():
         r["edge"] = edge * 100.0
         r["kelly_q"] = max(0.0, (edge / (b - 1.0)) * 25.0) if edge > 0 and b > 1.0 else 0.0
         r["kelly_cash"] = (bankroll * (r["kelly_q"] / 100.0)) if bankroll and r["kelly_q"] > 0 else ((bankroll * 0.01) if bankroll else None)
+
+        # Combined signals: Steam + Poisson + Calibration + Consensus
+        r["steam_pct"] = steam.get((r["event_id"], r["label"]))
+        r["sharp_steam"] = r["steam_pct"] is not None and r["steam_pct"] <= -2.0 and (r.get("ret") or 0) >= 0.90
+        fit = poisson_fits.get(r["event_id"])
+        r["poisson_xg"] = fit["total_xg"] if fit else None
+        r["poisson_edge"] = poisson.edge_vs_model(fit, r["label"], p)
+        mkt_part = r["label"].split(":", 1)[0] if ":" in r["label"] else r["label"]
+        r["cal_edge"] = cal_adj.get(calibrate._market_family(mkt_part))
+        r["consensus_n"] = _match_consensus(consensus, r)
+
+        score = (r.get("ret") or 0.9) * 0.6 + p * 0.4
+        if r["sharp_steam"]:
+            score += 0.04
+        if r["poisson_edge"] is not None:
+            score += max(-0.06, min(0.06, r["poisson_edge"] * 0.5))
+        if r["cal_edge"] is not None:
+            score += r["cal_edge"] * 0.5
+        if r["consensus_n"] >= 2:
+            score += 0.02
+        r["sharp_score"] = round(score, 4)
+
+    if by == "sharp":
+        rows.sort(key=lambda r: -r["sharp_score"])
 
     return render_template("leagues/singles.html", rows=rows, n_games=len(ids),
                            start=start, end=end, upcoming=upcoming, imported=imported, chosen=set(chosen),
@@ -264,11 +346,14 @@ def parlay():
 
     from ..analysis import flow, parlay_builder
     priced_by_game = store.load_picks(con, ids, markets.MAIN_FAMILIES, minp=0.15, maxp=1.0, mino=1.10, maxo=10.0)
+    steam = store.steam_map(con, ids)
+    cal_adj = _settled_calibration(con)
     dir_filter = request.args.get("dir", "no_unders").strip()
     game_pool = []
     for g in games_raw:
         priced = priced_by_game.get(g["event_id"], {})
         if priced:
+            fit = poisson.fit_event([{"label": k, "prob": v.get("prob")} for k, v in priced.items()])
             candidates = reach.from_priced(g["event_id"], f'{g["home"]} v {g["away"]}', priced,
                                            minp=0.15, maxp=1.0, mino=1.10, maxo=10.0)
             if dir_filter == "no_extreme_under":
@@ -278,7 +363,15 @@ def parlay():
             elif dir_filter == "over":
                 candidates = [c for c in candidates if "Over" in c["label"] or "Under" not in c["label"]]
             for c in candidates:
-                c.update(start_ms=g.get("start_ms"), tournament=g.get("tournament"))
+                mkt_part = c["label"].split(":", 1)[0] if ":" in c["label"] else c["label"]
+                c.update(
+                    start_ms=g.get("start_ms"),
+                    tournament=g.get("tournament"),
+                    steam_pct=steam.get((g["event_id"], c["label"])),
+                    poisson_xg=fit["total_xg"] if fit else None,
+                    poisson_edge=poisson.edge_vs_model(fit, c["label"], c.get("prob")),
+                    cal_edge=cal_adj.get(calibrate._market_family(mkt_part)),
+                )
             if candidates:
                 game_pool.append([flow.normalize_candidate(c) for c in candidates])
 

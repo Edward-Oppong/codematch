@@ -30,8 +30,7 @@ flowchart TD
         H1["Value Singles Scanner (/leagues/singles)"]
         H2["Custom Parlay Builder (/leagues/parlay)"]
         H3["Market Screener (/leagues/?mode=screen)"]
-        H4["Lowest Margin Markets (/leagues/margins)"]
-        H5["One Pick Per Game (/leagues/)"]
+        H4["One Pick Per Game (/leagues/)"]
     end
 
     subgraph LAB ["2. Slip Lab (Audit & Surgery)"]
@@ -53,6 +52,7 @@ flowchart TD
         T2["Bankroll & Kelly Sizing (/results/)"]
         T3["Closing Line Value / CLV (/results/)"]
         T4["Personal Calibration Engine (/results/)"]
+        T5["Rollover Tracker (/rollover/)"]
     end
 
     ROOT --> HUNT

@@ -51,6 +51,7 @@
   </div>
   <div class="row">
     <label>Rank by <select name="by" onchange="this.form.requestSubmit()">
+      <option value="sharp" {{ 'selected' if by == 'sharp' }}>🔥 Sharp Signal (Steam + Value + Poisson + Cal)</option>
       <option value="prob" {{ 'selected' if by == 'prob' }}>🎯 Highest Chance (most likely)</option>
       <option value="return" {{ 'selected' if by == 'return' }}>💰 Smallest House Margin (highest return)</option>
       <option value="odds" {{ 'selected' if by == 'odds' }}>📈 Highest Odds</option>
@@ -108,6 +109,27 @@
       </td>
       <td data-label="Pick">
         <b>{{ r.label }}</b> {{ m.zone_badge(r.zone, zl) }}
+        <div class="small" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:3px;">
+          {% if r.sharp_steam %}
+            <span class="badge" style="background:#b45309; color:#fff; padding:1px 6px; border-radius:4px;" title="Odds shortened since first import while keeping low margin">🔥 Steam {{ '%.1f'|format(r.steam_pct) }}%</span>
+          {% elif r.steam_pct is not none and r.steam_pct <= -2.0 %}
+            <span class="badge" style="background:var(--paper); border:1px solid var(--rule); padding:1px 6px; border-radius:4px;">📉 {{ '%.1f'|format(r.steam_pct) }}%</span>
+          {% endif %}
+          {% if r.poisson_xg is not none %}
+            <span class="badge" style="background:var(--paper); border:1px solid var(--rule); padding:1px 6px; border-radius:4px;" title="Implied match total xG from 1X2 + O/U 2.5">⚽ {{ '%.2f'|format(r.poisson_xg) }} xG</span>
+          {% endif %}
+          {% if r.poisson_edge is not none and r.poisson_edge >= 0.02 %}
+            <span class="badge" style="background:#15803d; color:#fff; padding:1px 6px; border-radius:4px;" title="Poisson model gives higher chance than posted">✓ Model +{{ '%.1f'|format(r.poisson_edge * 100) }}%</span>
+          {% elif r.poisson_edge is not none and r.poisson_edge <= -0.04 %}
+            <span class="badge" style="background:#b91c1c; color:#fff; padding:1px 6px; border-radius:4px;" title="Poisson model warns this line may be overvalued">⚠ Trap {{ '%.1f'|format(r.poisson_edge * 100) }}%</span>
+          {% endif %}
+          {% if r.cal_edge is not none %}
+            <span class="badge" style="background:{{ '#15803d' if r.cal_edge >= 0 else '#b91c1c' }}; color:#fff; padding:1px 6px; border-radius:4px;" title="Your settled win rate vs SportyBet in this market family">📊 Cal {{ '%+.1f'|format(r.cal_edge * 100) }}%</span>
+          {% endif %}
+          {% if r.consensus_n >= 2 %}
+            <span class="badge" style="background:#1d4ed8; color:#fff; padding:1px 6px; border-radius:4px;" title="Appears in {{ r.consensus_n }} saved/Code Hub slips">👥 In {{ r.consensus_n }} codes</span>
+          {% endif %}
+        </div>
       </td>
       <td data-label="Odds" class="num"><b>{{ '%.2f'|format(r.odds) }}</b></td>
       <td data-label="Chance" class="num">{{ r.prob|pct(1) }}</td>

@@ -420,6 +420,11 @@ def fixtures():
         goal = 2.0
     goal = min(max(goal, 1.01), 10000.0)
     agree_only = request.args.get("agree") == "1"
+    no_unders = request.args.get("no_unders") == "1"
+    try:
+        min_ret = max(0.0, float(request.args.get("minret") or 0)) / 100.0
+    except ValueError:
+        min_ret = 0.0
     minp = _min_chance(request.args.get("minp"))
     try:
         min_legs = max(1, min(int(request.args.get("minlegs") or 1), MAX_LEGS))
@@ -439,15 +444,32 @@ def fixtures():
             days = (d0, d1)
     pool = [f for f in rows if f["agree"]] if agree_only else rows
     stacked = None
+
+    def _keep_cand(c):
+        if c["prob"] < minp:
+            return False
+        if no_unders and "Under" in (c.get("label") or c.get("pick") or ""):
+            return False
+        if min_ret > 0 and (c.get("ret") or 0) < min_ret:
+            return False
+        return True
+
     if use == "target":
         from ..analysis import flow
         pool = pool[:n] if n else pool               # the search can look at every fixture; the code stays short
-        games = [[flow.normalize_candidate(c) for c in consensus.candidates(f) if c["prob"] >= minp] for f in pool]
+        games = [[flow.normalize_candidate(c) for c in consensus.candidates(f) if _keep_cand(c)] for f in pool]
+        games = [g for g in games if g]
         opt = flow.optimize_pool(games, target_odds=goal, min_legs=min_legs, min_chance=minp)
         legs = opt["legs"]
         stacked = opt["stacked"]
     else:
         legs = consensus.build_code(pool, use, n or MAX_LEGS)    # skips fixtures without a usable pick
+        if no_unders or min_ret > 0:
+            legs = [l for l in legs if (not no_unders or "Under" not in (l.get("label") or l.get("pick") or ""))
+                    and (min_ret <= 0 or (l.get("ret") or 0) >= min_ret)]
+    steam = store.steam_map(con, [l["event_id"] for l in legs if l.get("event_id")]) if legs else {}
+    for l in legs:
+        l["steam_pct"] = steam.get((l.get("event_id"), l.get("label")))
     acc = picks_.accumulator(legs)
     if acc:
         import math
@@ -460,10 +482,11 @@ def fixtures():
     missing = [(f["event_id"], f["match"]) for f in rows if not f["imported"]]
     return render_template("codes/fixtures.html", rows=rows, n_codes=len(legs_by_code), min_codes=min_codes,
                            use=use, n=n or "", legs=legs, acc=acc, upcoming=upcoming, zone_label=ZONE_LABEL,
-                           goal=goal, agree_only=agree_only, minp=minp, pool=len(pool), stacked=stacked, no_sel=no_sel,
+                           goal=goal, agree_only=agree_only, no_unders=no_unders, min_ret=min_ret * 100.0,
+                           minp=minp, pool=len(pool), stacked=stacked, no_sel=no_sel,
                            n_agree=sum(1 for f in rows if f["agree"]), max_legs=MAX_LEGS,
                            missing=len(missing), snippet=snippets.events_snippet(missing[:40]) if missing else None,
-                                                      min_legs=min_legs, n_from_code=len(from_code), oldest=oldest, days=days,quick_days=_quick_days())
+                           min_legs=min_legs, n_from_code=len(from_code), oldest=oldest, days=days, quick_days=_quick_days())
 
 
 MAX_CODES = 10               # codes made in one go, at most (each trip fetches every game again first)

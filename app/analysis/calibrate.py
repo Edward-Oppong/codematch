@@ -261,3 +261,19 @@ def overall_edge_summary(market_rows: list) -> dict:
         "tier": v["tier"],
         "message": v["message"],
     }
+
+
+def calibration_adjustments(settled_legs: list, min_n: int = 15) -> dict[str, float]:
+    """Return {canonical_market_family: edge_fraction} for markets with >= min_n settled legs.
+
+    Positive values (e.g. +0.04) mean the user outperforms SportyBet's stated prob;
+    negative values (e.g. -0.05) mean the user underperforms and picks in that family
+    should be penalized in ranking.
+    """
+    rows = market_edge(settled_legs)
+    out = {}
+    for r in rows:
+        if r["n"] >= min_n:
+            # Clamp adjustment to [-0.15, +0.10] so one small streak doesn't dominate
+            out[r["family"]] = max(-0.15, min(0.10, round(r["edge_pct"] / 100.0, 4)))
+    return out

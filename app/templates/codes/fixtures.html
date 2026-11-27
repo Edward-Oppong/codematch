@@ -62,6 +62,8 @@
           fixtures</label>
         <label><input type="checkbox" name="agree" value="1" {{ 'checked' if agree_only }}> only where the codes don't
           contradict each other ({{ n_agree }})</label>
+        <label><input type="checkbox" name="no_unders" value="1" {{ 'checked' if no_unders }}> 🚫 No Unders</label>
+        <label>Min Return <input name="minret" value="{{ '%g'|format(min_ret) if min_ret else '' }}" size="3" placeholder="any" inputmode="decimal">%</label>
       </div>
       <div class="row">
         <label>using <select name="use">

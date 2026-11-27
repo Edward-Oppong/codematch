@@ -16,7 +16,7 @@ The application never directly scrapes or attacks SportyBet servers. Data ingest
 - **Data Persistence:** SQLite3 with Write-Ahead Logging (`PRAGMA journal_mode=WAL`), memory temp stores, and sub-10ms query execution across 276 leagues.
 - **Frontend:** Pure HTML5, Jinja2, Vanilla CSS3 (custom design system with light/night pitch dark mode, zero frontend frameworks or heavy dependencies).
 - **Security:** Strict Host authorization (`ALLOWED_HOSTS`), DNS rebinding mitigation, origin validation, CSRF protections, and sandboxed client-side bridge.
-- **Quality Assurance:** 100% test pass rate across 168 unit and integration tests (`pytest`).
+- **Quality Assurance:** 100% test pass rate across 170 unit and integration tests (`pytest`).
 
 ### System Architecture Diagram
 
@@ -44,8 +44,8 @@ flowchart TD
         subgraph Engines ["Algorithmic Decision Engines"]
             PB["Parlay Suite: Knapsack Optimizer"]
             SURG["Batch Code Surgeon & Toxicity Grader"]
-            VAL["Value Singles: Quarter-Kelly Staking"]
-            CLV["CLV Tracker & Wilson Calibration"]
+            VAL["Value Singles: Sharp Signal (Steam + Poisson + Cal + Kelly)"]
+            CLV["CLV Tracker, Wilson Calibration & Rollover Ladder"]
         end
 
         PARSER --> Engines
@@ -152,7 +152,12 @@ The quantitative advantage alternative to high-margin accumulators. Finds single
 ### 6. Dedicated Community Code Hub Feed (`/codes/hub`)
 - **Trending Slip Curation:** Displays public SportyBet booking codes filtered and ranked by community popularity, win probability, or expected return.
 - **Toxicity Badges & Health Scoring:** Immediately flags community tickets carrying Grade D or Grade F house margins before betting.
-- **Crowd Consensus Generator:** Synthesizes the most popular selections across all active community slips into an optimized consensus ticket.
+- **Crowd Consensus Generator:** Synthesizes the most popular selections across all active community slips into an optimized consensus ticket, with **No Unders** and **Min Return** value filtering.
+- **Combined Quantitative Signals (`Sharp Signal`):**
+  - **Implied Poisson Goal Model (`app/analysis/poisson.py`):** Derives implied team expected goals ($\lambda_{\text{home}}, \lambda_{\text{away}}$) from SportyBet's own 1X2 and Over/Under 2.5 lines to flag model-backed picks and warn on traps without external APIs.
+  - **Steam + Value Combo:** Badges and ranks picks where odds shortened since first import while retaining low house margin.
+  - **Calibration-Adjusted Ranking:** Feeds settled market-family performance back into pick scoring.
+- **Rollover Tracker (`/rollover`):** Step-by-step rolling bankroll ladder with live step projection, win/bust tracking, and direct links to `No Unders` Value Singles.
 
 ---
 

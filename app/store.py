@@ -311,6 +311,42 @@ def steam_movers(con, event_ids, min_pct=2.0, direction="all", limit=100):
     return [dict(r) for r in con.execute(q, args)]
 
 
+def steam_map(con, event_ids):
+    """Return {(event_id, label): move_pct} for picks whose odds have moved since first import."""
+    if not event_ids:
+        return {}
+    _id_table(con, event_ids)
+    q = """
+    SELECT p.event_id, p.label, ((p.odds - f.first_odds) / f.first_odds) * 100.0 AS move_pct
+    FROM picks p
+    JOIN sel_ids s ON s.event_id = p.event_id
+    JOIN (
+        SELECT h.event_id, h.label, h.odds AS first_odds
+        FROM history h
+        JOIN (
+            SELECT event_id, label, MIN(ts) AS min_ts FROM history GROUP BY event_id, label
+        ) m ON h.event_id = m.event_id AND h.label = m.label AND h.ts = m.min_ts
+    ) f ON f.event_id = p.event_id AND f.label = p.label
+    WHERE p.prob_ok = 1 AND p.cond = 0 AND f.first_odds > 0 AND ABS(p.odds - f.first_odds) > 1e-6
+    """
+    return {(r["event_id"], r["label"]): round(r["move_pct"], 2) for r in con.execute(q)}
+
+
+def consensus_counts(con, event_ids):
+    """Return {(event_id, market_lower, pick_lower): n_codes} across all saved/hub codes for these games."""
+    if not event_ids:
+        return {}
+    _id_table(con, event_ids)
+    q = """
+    SELECT s.event_id, LOWER(s.market) AS mkt, LOWER(s.pick) AS pck, COUNT(DISTINCT s.code) AS n
+    FROM selections s
+    JOIN sel_ids i ON i.event_id = s.event_id
+    GROUP BY s.event_id, LOWER(s.market), LOWER(s.pick)
+    HAVING n >= 2
+    """
+    return {(r["event_id"], r["mkt"], r["pck"]): r["n"] for r in con.execute(q)}
+
+
 def margins(con, event_ids, by="market"):
     """How much SportyBet keeps (1 minus the return) on average, over the saved picks of these games, grouped by
     market (family and market name) or by league and family, split by odds zone. Picks whose return couldn't be
