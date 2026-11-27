@@ -246,6 +246,8 @@ def value_singles(con, event_ids, mino=1.10, maxo=10.0, minp=0.40, min_ret=0.92,
         extra_clause += " AND p.label LIKE '%Under%'"
     elif direction == "no_extreme_under":
         extra_clause += " AND NOT (p.label LIKE '%Under 4%' OR p.label LIKE '%Under 5%' OR p.label LIKE '%Under 6%')"
+    elif direction == "no_unders":
+        extra_clause += " AND p.label NOT LIKE '%Under%'"
 
     order_map = {
         "prob": "p.prob DESC, p.ret DESC",

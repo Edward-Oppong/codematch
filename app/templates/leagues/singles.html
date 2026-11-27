@@ -57,8 +57,9 @@
       <option value="kickoff" {{ 'selected' if by == 'kickoff' }}>⏱️ Soonest Kick-off</option>
     </select></label>
     <label>Picks Filter <select name="dir" onchange="this.form.requestSubmit()">
-      <option value="all" {{ 'selected' if dir == 'all' }}>All Picks</option>
+      <option value="no_unders" {{ 'selected' if dir == 'no_unders' }}>🚫 No Unders (Overs, Double Chance &amp; 1X2 only)</option>
       <option value="no_extreme_under" {{ 'selected' if dir == 'no_extreme_under' }}>Exclude Extreme Unders (No Under 4.5 / 5.0)</option>
+      <option value="all" {{ 'selected' if dir == 'all' }}>All Picks</option>
       <option value="over" {{ 'selected' if dir == 'over' }}>Over Lines Only</option>
       <option value="under" {{ 'selected' if dir == 'under' }}>Under Lines Only</option>
     </select></label>
